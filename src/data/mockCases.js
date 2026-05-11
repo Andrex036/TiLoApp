@@ -1,0 +1,62 @@
+export const initialCases = [
+  {
+    id: "101",
+    identificacion: "101",
+    codigo: "Caso #101",
+    estudiante: "Juan Pérez",
+    grado: "5°",
+    sede: "Santa Mónica (JM)",
+    tipoCaso: "Nuevo",
+    motivo: "Convivencia escolar",
+    estado: "Activo",
+    nivelRiesgo: "Medio",
+    createdAt: "2026-04-15T10:00:00.000Z",
+    docenteRemitente: "Ana María López",
+    seguimientos: []
+  },
+  {
+    id: "102",
+    identificacion: "102",
+    codigo: "Caso #102",
+    estudiante: "María García",
+    grado: "8°",
+    sede: "Villa Flor (JT)",
+    tipoCaso: "Antiguo",
+    motivo: "Académico",
+    estado: "En seguimiento",
+    nivelRiesgo: "Alto",
+    createdAt: "2026-05-01T09:00:00.000Z",
+    docenteRemitente: "Carlos Ruiz",
+    seguimientos: []
+  },
+  {
+    id: "103",
+    identificacion: "103",
+    codigo: "Caso #103",
+    estudiante: "Luis Rodríguez",
+    grado: "11°",
+    sede: "Santa Mónica (JM)",
+    tipoCaso: "Nuevo",
+    motivo: "Riesgo psicosocial",
+    estado: "Activo",
+    nivelRiesgo: "Prioritario",
+    createdAt: "2026-05-10T14:30:00.000Z",
+    docenteRemitente: "Sandra Torres",
+    seguimientos: []
+  },
+  {
+    id: "104",
+    identificacion: "104",
+    codigo: "Caso #104",
+    estudiante: "Sofía Martínez",
+    grado: "2°",
+    sede: "Canchala",
+    tipoCaso: "Nuevo",
+    motivo: "Pautas de crianza",
+    estado: "Activo",
+    nivelRiesgo: "Bajo",
+    createdAt: "2026-05-05T11:20:00.000Z",
+    docenteRemitente: "Marta Gómez",
+    seguimientos: []
+  }
+];

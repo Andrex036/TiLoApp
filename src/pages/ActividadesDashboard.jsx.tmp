@@ -1,0 +1,580 @@
+﻿import { useState, useRef } from 'react';
+import {
+  Calendar,
+  Clock,
+  CheckCircle2,
+  AlertTriangle,
+  Plus,
+  ArrowLeft,
+  Bell,
+  Search,
+  Filter,
+  MoreVertical,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  MapPin,
+  User
+} from 'lucide-react';
+import { useActivities } from '../hooks/useActivities';
+import { useMemo } from 'react';
+
+// --- Local Mock Data ---
+const stats = [
+  { id: 1, title: 'Actividades hoy', count: 8, desc: 'Programadas', icon: Calendar, color: 'text-blue-600', bg: 'bg-blue-50' },
+  { id: 2, title: 'Pendientes', count: 5, desc: 'Sin completar', icon: Clock, color: 'text-orange-600', bg: 'bg-orange-50' },
+  { id: 3, title: 'Completadas', count: 3, desc: 'Finalizadas', icon: CheckCircle2, color: 'text-green-600', bg: 'bg-green-50' },
+  { id: 4, title: 'Prioritarias', count: 2, desc: 'AtenciÃ³n urgente', icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50' },
+  { id: 5, title: 'Esta semana', count: 4, desc: 'PrÃ³ximas', icon: Calendar, color: 'text-purple-600', bg: 'bg-purple-50' },
+  { id: 6, title: 'Vencidas', count: 1, desc: 'No realizadas', icon: AlertTriangle, color: 'text-slate-600', bg: 'bg-slate-100' },
+];
+
+const alertList = [
+  { id: 1, text: 'Tienes una actividad en menos de 1 hora: ReuniÃ³n con padre de familia.', color: 'blue' },
+  { id: 2, text: 'Actividad prioritaria pendiente: ComitÃ© de convivencia escolar.', color: 'red' },
+  { id: 3, text: 'Actividad vencida sin completar: RevisiÃ³n informe convivencia.', color: 'orange' },
+  { id: 4, text: 'Hoy tienes 3 actividades programadas.', color: 'purple' },
+  { id: 5, text: 'Recuerda registrar observaciones al finalizar cada actividad.', color: 'slate' },
+];
+
+const quickFilters = ['Todas', 'Hoy', 'MaÃ±ana', 'Esta semana', 'Vencidas', 'Prioritarias', 'Completadas'];
+
+export default function ActividadesDashboard({ onNavigate }) {
+  const { activities, createActivity, updateStatus } = useActivities();
+  const [activeFilter, setActiveFilter] = useState('Todas');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [typeFilter, setTypeFilter] = useState('Todos');
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState(new Date().toISOString().split('T')[0]);
+  const [calendarView, setCalendarView] = useState('Semana');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [createdActivity, setCreatedActivity] = useState(null);
+  const [openMenuId, setOpenMenuId] = useState(null);
+
+  const calendarRef = useRef(null);
+  const alertsRef = useRef(null);
+  const listRef = useRef(null);
+
+  const filteredActivities = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+    return activities.filter(act => {
+      // Basic Filters
+      const matchesSearch = !searchTerm || act.titulo.toLowerCase().includes(searchTerm.toLowerCase()) || act.descripcion?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesType = typeFilter === 'Todos' || act.tipo === typeFilter;
+      
+      if (!matchesSearch || !matchesType) return false;
+
+      if (activeFilter === 'Todas') return true;
+      if (activeFilter === 'Hoy') return act.fecha === today;
+      if (activeFilter === 'MaÃ±ana') {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        return act.fecha === tomorrow.toISOString().split('T')[0];
+      }
+      if (activeFilter === 'Vencidas') return act.estado === 'Vencida';
+      if (activeFilter === 'Prioritarias') return act.prioridad === 'Prioritaria';
+      if (activeFilter === 'Completadas') return act.estado === 'Completada';
+      if (activeFilter === 'Pendientes') return act.estado === 'Programada' || act.estado === 'En curso';
+      return true;
+    });
+  }, [activities, activeFilter, searchTerm, typeFilter]);
+
+  // Calendar weeks helper (Starting from Monday)
+  const weekDays = useMemo(() => {
+    const days = [];
+    const now = new Date();
+    const dayOfWeek = now.getDay(); // 0 (Sun) to 6 (Sat)
+    const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + diffToMonday);
+
+    const range = calendarView === 'Mes' ? 42 : 7; // 42 to cover most month grids
+
+    for (let i = 0; i < range; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      
+      // If Month view, only show current month or full grid? 
+      // Let's do full grid starting from the Monday of the 1st week of the month
+      if (calendarView === 'Mes') {
+        const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const dayOfFirst = firstOfMonth.getDay();
+        const diff = dayOfFirst === 0 ? -6 : 1 - dayOfFirst;
+        const startGrid = new Date(firstOfMonth);
+        startGrid.setDate(firstOfMonth.getDate() + diff);
+        
+        const gridDate = new Date(startGrid);
+        gridDate.setDate(startGrid.getDate() + i);
+        
+        days.push({
+          full: gridDate.toISOString().split('T')[0],
+          num: gridDate.getDate(),
+          label: gridDate.toLocaleDateString('es-ES', { weekday: 'short' }).toUpperCase().replace('.', ''),
+          month: gridDate.toLocaleDateString('es-ES', { month: 'short' }).toUpperCase().replace('.', ''),
+          isCurrentMonth: gridDate.getMonth() === now.getMonth()
+        });
+      } else {
+        days.push({
+          full: d.toISOString().split('T')[0],
+          num: d.getDate(),
+          label: d.toLocaleDateString('es-ES', { weekday: 'short' }).toUpperCase().replace('.', ''),
+          month: d.toLocaleDateString('es-ES', { month: 'short' }).toUpperCase().replace('.', ''),
+          isCurrentMonth: true
+        });
+      }
+    }
+    return days;
+  }, [calendarView]);
+
+  const activitiesForSelectedDate = useMemo(() => {
+    return activities
+      .filter(act => act.fecha === selectedCalendarDate)
+      .sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
+  }, [activities, selectedCalendarDate]);
+
+  const handleComplete = (id) => {
+    updateStatus(id, 'Completada');
+  };
+
+  const activityCards = useMemo(() => {
+    const statusColors = {
+      'Programada': 'bg-blue-50 text-blue-700 border-blue-200',
+      'En curso': 'bg-purple-50 text-purple-700 border-purple-200',
+      'Completada': 'bg-green-50 text-green-700 border-green-200',
+      'Reprogramada': 'bg-orange-50 text-orange-700 border-orange-200',
+      'Vencida': 'bg-red-50 text-red-700 border-red-200',
+      'Cancelada': 'bg-slate-50 text-slate-700 border-slate-200'
+    };
+
+    if (filteredActivities.length === 0) {
+      return (
+        <div className="bg-white py-12 rounded-2xl border border-dashed border-slate-200 text-center col-span-full">
+          <Search size={32} className="text-slate-200 mx-auto mb-2" />
+          <p className="text-xs text-slate-400 font-medium">No hay actividades que coincidan con el filtro</p>
+        </div>
+      );
+    }
+
+    return filteredActivities.map(act => (
+      <div key={act.id} className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col relative group hover:border-blue-300 hover:shadow-md transition-all animate-[fadeIn_0.3s_ease-out]">
+        <div className="bg-slate-50/50 py-3 border-b border-slate-100 flex flex-col items-center">
+          <span className="text-[10px] font-bold text-slate-400 mb-1">{act.fecha.slice(8,10)}/{act.fecha.slice(5,7)}</span>
+          <span className={`text-xl font-black text-${act.color}-600 leading-none tracking-tight`}>{act.horaInicio}</span>
+          <span className="text-[9px] text-slate-400 mt-0.5">a {act.horaFin}</span>
+        </div>
+        
+        <div className="p-5">
+          <div className="flex justify-between items-start gap-4 mb-2">
+            <h3 className="font-extrabold text-slate-800 text-base leading-tight flex-1">{act.titulo}</h3>
+            <span className={`text-[9px] font-bold px-3 py-1 rounded-full border shrink-0 ${statusColors[act.estado] || statusColors['Programada']}`}>
+              {act.estado}
+            </span>
+          </div>
+          
+          <p className="text-xs text-slate-500 mb-4 font-medium">{act.tipo} â€¢ Sede {act.sede}</p>
+          
+          <div className="flex flex-wrap gap-2 mb-6">
+            <div className="bg-slate-50 text-slate-600 px-3 py-1.5 rounded-xl flex items-center gap-1.5 border border-slate-100/50">
+              <User size={12} className="text-slate-400"/>
+              <span className="text-[10px] font-bold">{act.responsable}</span>
+            </div>
+            
+            <div className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 border ${
+              act.prioridad === 'Prioritaria' ? 'bg-red-50 border-red-100 text-red-600' : 
+              act.prioridad === 'Alta' ? 'bg-orange-50 border-orange-100 text-orange-600' :
+              'bg-blue-50 border-blue-100 text-blue-600'
+            }`}>
+              <AlertTriangle size={12}/>
+              <span className="text-[10px] font-bold">Prioridad {act.prioridad}</span>
+            </div>
+
+            {act.estudianteRelacionado && (
+              <div className="bg-slate-50 text-slate-600 px-3 py-1.5 rounded-xl flex items-center gap-1.5 border border-slate-100/50">
+                <span className="text-[10px] font-bold">Estudiante: {act.estudianteRelacionado}</span>
+              </div>
+            )}
+
+            {act.casoRelacionado && (
+              <div className="bg-blue-50 text-blue-700 px-3 py-1.5 rounded-xl flex items-center gap-1.5 border border-blue-100/50">
+                <span className="text-[10px] font-bold">Caso #{act.id.slice(-3)}</span>
+              </div>
+            )}
+          </div>
+          
+          <div className="flex justify-start relative">
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpenMenuId(openMenuId === act.id ? null : act.id);
+              }}
+              className="w-10 h-10 flex items-center justify-center bg-white border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-300 rounded-xl transition-all shadow-sm"
+            >
+              <MoreVertical size={18}/>
+            </button>
+
+            {openMenuId === act.id && (
+              <div className="absolute bottom-full left-0 mb-2 w-48 bg-white rounded-2xl shadow-xl border border-slate-100 py-2 z-10 animate-[fadeIn_0.2s_ease-out]">
+                <button className="w-full text-left px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2">Editar Actividad</button>
+                <button className="w-full text-left px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2">Reprogramar</button>
+                {act.estado !== 'Completada' && (
+                  <button onClick={() => handleComplete(act.id)} className="w-full text-left px-4 py-2 text-xs font-bold text-green-600 hover:bg-green-50 flex items-center gap-2">Marcar como completada</button>
+                )}
+                <div className="h-px bg-slate-100 my-1 mx-2"></div>
+                <button className="w-full text-left px-4 py-2 text-xs font-bold text-red-600 hover:bg-red-50 flex items-center gap-2">Eliminar</button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    ));
+  }, [filteredActivities, openMenuId, handleComplete]);
+
+  const scrollTo = (ref) => {
+    ref.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+
+
+  const handleCreateActivity = (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const newAct = {
+      titulo: formData.get('titulo'),
+      fecha: formData.get('fecha'),
+      sede: formData.get('sede'),
+      horaInicio: formData.get('horaInicio'),
+      horaFin: formData.get('horaFin'),
+      tipo: formData.get('tipo'),
+      descripcion: formData.get('descripcion'),
+      prioridad: formData.get('prioridad') || 'Media',
+      responsable: 'OrientaciÃ³n Escolar',
+      estudianteRelacionado: formData.get('estudiante'),
+      color: formData.get('prioridad') === 'Prioritaria' ? 'red' : 
+             formData.get('prioridad') === 'Alta' ? 'orange' : 'blue'
+    };
+    const saved = createActivity(newAct);
+    setCreatedActivity(saved);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setCreatedActivity(null);
+  };
+
+  return (
+    <div className="w-full pb-8 bg-slate-50 min-h-screen" onClick={() => setOpenMenuId(null)}>
+      
+      {/* 1. Encabezado */}
+      <header className="bg-[#0F4DB8] text-white px-5 py-6 sm:rounded-t-2xl shadow-sm relative">
+        <button 
+          onClick={() => onNavigate && onNavigate('inicio')}
+          className="absolute top-4 left-4 p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors"
+        >
+          <ArrowLeft size={20} />
+        </button>
+        <div className="mt-8">
+          <div className="flex justify-between items-start mb-2">
+            <h1 className="text-2xl font-bold tracking-wide flex items-center gap-2">
+              <Calendar size={24} /> MÃ³dulo de Actividades
+            </h1>
+            <div className="flex flex-col items-end gap-1">
+              <span className="text-sm font-medium">29/04/2026</span>
+              <span className="bg-blue-400/30 text-xs px-2.5 py-0.5 rounded-full font-medium">Periodo 1</span>
+            </div>
+          </div>
+          <p className="text-blue-100 text-sm leading-relaxed max-w-[85%]">
+            ProgramaciÃ³n, seguimiento y alertas de actividades diarias
+          </p>
+        </div>
+      </header>
+
+      <div className="px-4 py-6 space-y-8 max-w-5xl mx-auto">
+        
+        {/* 2. Acciones rÃ¡pidas principales */}
+        <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <ActionCard 
+            title="Crear actividad" 
+            desc="Registra una nueva actividad diaria." 
+            icon={<Plus size={24} />} 
+            color="text-blue-600 bg-blue-50" 
+            onClick={() => setIsModalOpen(true)}
+          />
+          <ActionCard 
+            title="Programar actividad" 
+            desc="Agenda para una fecha y hora." 
+            icon={<Clock size={24} />} 
+            color="text-green-600 bg-green-50" 
+            onClick={() => setIsModalOpen(true)}
+          />
+          <ActionCard 
+            title="Ver calendario" 
+            desc="Consulta actividades por semana." 
+            icon={<Calendar size={24} />} 
+            color="text-purple-600 bg-purple-50" 
+            onClick={() => scrollTo(calendarRef)}
+          />
+          <ActionCard 
+            title="Alertas del dÃ­a" 
+            desc="Revisa actividades prÃ³ximas." 
+            icon={<Bell size={24} />} 
+            color="text-orange-600 bg-orange-50" 
+            onClick={() => {
+              setActiveFilter('Hoy');
+              scrollTo(listRef);
+            }}
+          />
+        </section>
+
+        {/* 3. EstadÃ­sticas del mÃ³dulo */}
+        <section>
+          <h2 className="text-base font-bold text-slate-800 mb-3">Resumen de actividades</h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            {stats.map(stat => (
+              <button 
+                key={stat.id} 
+                onClick={() => {
+                  if (stat.title === 'Actividades hoy') setActiveFilter('Hoy');
+                  else if (stat.title === 'Pendientes') setActiveFilter('Pendientes');
+                  else if (stat.title === 'Completadas') setActiveFilter('Completadas');
+                  else if (stat.title === 'Prioritarias') setActiveFilter('Prioritarias');
+                  else if (stat.title === 'Vencidas') setActiveFilter('Vencidas');
+                  scrollTo(listRef);
+                }}
+                className="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center text-center hover:border-blue-200 hover:shadow-md transition-all active:scale-95"
+              >
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 ${stat.bg} ${stat.color}`}>
+                  <stat.icon size={20} />
+                </div>
+                <span className="text-2xl font-bold text-slate-800 leading-none">
+                  {stat.title === 'Actividades hoy' ? activities.filter(a => a.fecha === new Date().toISOString().split('T')[0]).length :
+                   stat.title === 'Pendientes' ? activities.filter(a => a.estado === 'Programada').length :
+                   stat.title === 'Completadas' ? activities.filter(a => a.estado === 'Completada').length :
+                   stat.title === 'Prioritarias' ? activities.filter(a => a.prioridad === 'Prioritaria').length :
+                   stat.count}
+                </span>
+                <h3 className="text-[11px] font-bold mt-1.5 text-slate-700 leading-tight">{stat.title}</h3>
+                <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">{stat.desc}</p>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {/* 10. Alertas estilo calendario */}
+        <section ref={alertsRef}>
+          <h2 className="text-base font-bold text-slate-800 mb-3 flex items-center gap-2">
+            <Bell size={18} className="text-blue-500"/> Alertas de actividades
+          </h2>
+          <div className="flex flex-col gap-2.5">
+            {alertList.map(alert => {
+              const colors = {
+                blue: 'bg-blue-50 border-blue-100 text-blue-800 icon-blue-500',
+                red: 'bg-red-50 border-red-100 text-red-800 icon-red-500',
+                orange: 'bg-orange-50 border-orange-100 text-orange-800 icon-orange-500',
+                purple: 'bg-purple-50 border-purple-100 text-purple-800 icon-purple-500',
+                slate: 'bg-slate-50 border-slate-100 text-slate-800 icon-slate-500',
+              };
+              const colorClass = colors[alert.color] || colors.slate;
+              const Icon = alert.color === 'red' || alert.color === 'orange' ? AlertTriangle : Bell;
+
+              return (
+                <div key={alert.id} className={`p-3 rounded-xl border flex justify-between items-center gap-3 ${colorClass.split(' ').slice(0,3).join(' ')}`}>
+                  <div className="flex items-start gap-3">
+                    <Icon size={16} className={`shrink-0 mt-0.5 text-${alert.color}-500`} />
+                    <p className="text-sm font-medium leading-tight">{alert.text}</p>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      if (alert.text.includes('vencida')) setActiveFilter('Vencidas');
+                      else if (alert.text.includes('Hoy') || alert.text.includes('hora')) setActiveFilter('Hoy');
+                      else if (alert.text.includes('prioritaria')) setActiveFilter('Prioritarias');
+                      scrollTo(listRef);
+                    }}
+                    className={`text-xs font-bold px-3 py-1.5 rounded-lg bg-white/60 hover:bg-white/80 transition-colors`}
+                  >
+                    Revisar
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* 9. Calendario de actividades (Vista Adaptable) */}
+        <section ref={calendarRef}>
+          <div className="flex justify-between items-center mb-3">
+            <h2 className="text-base font-bold text-slate-800">Agenda {calendarView.toLowerCase()}</h2>
+          </div>
+          
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+            {/* View Toggle */}
+            <div className="p-3 bg-slate-50/50 border-b border-slate-100 flex justify-center">
+              <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-100">
+                {['DÃ­a', 'Semana', 'Mes'].map((view) => (
+                  <button
+                    key={view}
+                    onClick={() => setCalendarView(view)}
+                    className={`px-4 py-1.5 text-[10px] font-bold rounded-lg transition-all ${
+                      calendarView === view ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'
+                    }`}
+                  >
+                    {view}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Date Selector */}
+            <div className="p-4 border-b border-slate-100">
+              {calendarView === 'Mes' ? (
+                <div className="grid grid-cols-7 gap-1">
+                  {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((d, i) => (
+                    <div key={i} className="text-[8px] font-black text-slate-300 text-center mb-1">{d}</div>
+                  ))}
+                  {weekDays.map((day) => {
+                    const isSelected = day.full === selectedCalendarDate;
+                    const isToday = day.full === new Date().toISOString().split('T')[0];
+                    const hasActivities = activities.some(a => a.fecha === day.full);
+                    
+                    return (
+                      <button 
+                        key={day.full}
+                        onClick={() => setSelectedCalendarDate(day.full)}
+                        className={`aspect-square flex flex-col items-center justify-center rounded-lg transition-all relative ${
+                          isSelected ? 'bg-blue-600 text-white shadow-md' : 
+                          day.isCurrentMonth ? 'bg-white text-slate-700 hover:bg-slate-50' : 'bg-slate-50/30 text-slate-300'
+                        }`}
+                      >
+                        <span className="text-[10px] font-bold">{day.num}</span>
+                        {hasActivities && !isSelected && (
+                          <div className={`absolute bottom-1 w-1 h-1 rounded-full ${isToday ? 'bg-blue-600' : 'bg-slate-300'}`}></div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex overflow-x-auto gap-2.5 pb-2 scrollbar-hide snap-x">
+                  {weekDays
+                    .filter(d => calendarView !== 'DÃ­a' || d.full === new Date().toISOString().split('T')[0] || d.full === selectedCalendarDate)
+                    .map((day) => {
+                    const isSelected = day.full === selectedCalendarDate;
+                    const isToday = day.full === new Date().toISOString().split('T')[0];
+                    return (
+                      <button 
+                        key={day.full}
+                        onClick={() => setSelectedCalendarDate(day.full)}
+                        className={`flex flex-col items-center min-w-[48px] py-2.5 rounded-xl transition-all snap-center ${
+                          isSelected ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'bg-white text-slate-500 border border-slate-100'
+                        }`}
+                      >
+                        <span className={`text-[8px] font-bold mb-0.5 ${isSelected ? 'text-blue-100' : 'text-slate-400'}`}>{day.label}</span>
+                        <span className="text-sm font-black leading-tight">{day.num}</span>
+                        <span className={`text-[7px] font-bold ${isSelected ? 'text-blue-200' : 'text-slate-300'}`}>{day.month}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Selected Day Timeline */}
+            <div className="p-4 bg-white">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Actividades {selectedCalendarDate === new Date().toISOString().split('T')[0] ? 'de hoy' : ''}</h3>
+                <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">{selectedCalendarDate.split('-').reverse().join('/')}</span>
+              </div>
+              
+              <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+                {activitiesForSelectedDate.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-8 text-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                    <Calendar size={20} className="text-slate-300 mb-2" />
+                    <p className="text-[10px] text-slate-400 font-medium px-4">No hay actividades para esta fecha</p>
+                  </div>
+                ) : (
+                  activitiesForSelectedDate.map((act) => (
+                    <div key={act.id} className="flex gap-3 group cursor-pointer" onClick={() => {
+                      setSearchTerm(act.titulo);
+                      scrollTo(listRef);
+                    }}>
+                      <div className="flex flex-col items-center py-1">
+                        <span className="text-[10px] font-black text-blue-600 leading-none">{act.horaInicio}</span>
+                        <div className="w-px h-full bg-slate-100 my-1 group-last:bg-transparent"></div>
+                      </div>
+                      <div className="flex-1">
+                        <div className={`p-3 rounded-xl border transition-all ${
+                          act.prioridad === 'Prioritaria' ? 'bg-red-50 border-red-100' : 'bg-white border-slate-100 group-hover:border-blue-100'
+                        }`}>
+                          <div className="flex justify-between items-start">
+                            <h4 className="text-xs font-bold text-slate-800 line-clamp-1">{act.titulo}</h4>
+                            {act.prioridad === 'Prioritaria' && <span className="text-[7px] bg-red-600 text-white px-1 py-0.5 rounded ml-1">!</span>}
+                          </div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[9px] text-slate-500">{act.tipo}</span>
+                            <span className="text-[9px] text-slate-400">â€¢</span>
+                            <span className="text-[9px] text-slate-500">{act.sede}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* 8. Filtros de actividades */}
+        <section ref={listRef}>
+          <h2 className="text-base font-bold text-slate-800 mb-3">Actividades programadas</h2>
+          
+          <div className="flex flex-wrap gap-2 mb-4">
+            {quickFilters.map(filter => (
+              <button 
+                key={filter}
+                onClick={() => setActiveFilter(filter)}
+                className={`whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-semibold transition-colors border ${
+                  activeFilter === filter ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                {filter}
+              </button>
+            ))}
+          </div>
+
+          <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+              <input 
+                type="text" 
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Buscar actividad..." 
+                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" 
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2 flex-1">
+              <select 
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl text-xs px-3 py-2 text-slate-600 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="Todos">Tipo de actividad</option>
+                <option value="Cita con estudiante">Cita Estudiante</option>
+                <option value="ReuniÃ³n con padre">ReuniÃ³n Padre</option>
+                <option value="Seguimiento de caso">Seguimiento</option>
+                <option value="Taller grupal">Taller</option>
+              </select>
+              <button 
+                onClick={() => {
+                  setSearchTerm('');
+                  setTypeFilter('Todos');
+                  setActiveFilter('Todas');
+                }}
+                className="bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs px-3 py-2 font-bold flex items-center justify-center gap-2"
+              >
+                Limpiar
+              </button>
+            </div>
+          </div>
+        </section>
+
