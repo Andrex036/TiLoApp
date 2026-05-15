@@ -17,9 +17,19 @@ export default function MobileLayout({ children, currentTab, onTabChange }) {
   return (
     <div className="flex flex-col h-full max-w-5xl mx-auto bg-slate-50 relative overflow-hidden sm:shadow-2xl sm:border sm:border-slate-200 sm:h-[95vh] sm:mt-[2.5vh] sm:rounded-2xl">
       
-      {/* Main Scrollable Content */}
-      <main ref={mainRef} className="flex-1 overflow-y-auto scroll-smooth bg-slate-50 relative z-10 pb-[calc(env(safe-area-inset-bottom)+5rem)]">
-        {children}
+      {/* Main Scrollable Content Area */}
+      <main 
+        ref={mainRef} 
+        className="absolute inset-0 overflow-y-auto overflow-x-hidden scroll-smooth bg-slate-50 z-10"
+        style={{ WebkitOverflowScrolling: 'touch' }}
+      >
+        <div className="min-h-full flex flex-col">
+          <div className="flex-1">
+            {children}
+          </div>
+          {/* Bottom Spacer to ensure content clears the fixed nav */}
+          <div className="h-[140px] w-full shrink-0" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}></div>
+        </div>
       </main>
 
       {/* Bottom Navigation */}
