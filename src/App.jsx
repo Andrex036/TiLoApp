@@ -24,12 +24,12 @@ function App() {
     }, 3000) // 3 seconds splash
 
     // Force system reset for clean testing if not already done
-    const resetDone = localStorage.getItem('tilo_reset_fresh_v2');
+    const resetDone = localStorage.getItem('tilo_reset_clean_v1');
     if (!resetDone) {
       localStorage.removeItem('tilo_cases');
       localStorage.removeItem('tilo_activities');
       localStorage.removeItem('tilo_alerts');
-      localStorage.setItem('tilo_reset_fresh_v2', 'true');
+      localStorage.setItem('tilo_reset_clean_v1', 'true');
       // Refresh to ensure services re-init with empty mock data
       window.location.reload();
     }
