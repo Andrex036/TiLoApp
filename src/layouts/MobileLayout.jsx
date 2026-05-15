@@ -18,14 +18,19 @@ export default function MobileLayout({ children, currentTab, onTabChange }) {
     <div className="flex flex-col h-full max-w-5xl mx-auto bg-slate-50 relative overflow-hidden sm:shadow-2xl sm:border sm:border-slate-200 sm:h-[95vh] sm:mt-[2.5vh] sm:rounded-2xl">
       
       {/* Main Scrollable Content */}
-      <main ref={mainRef} className="flex-1 overflow-y-auto scroll-smooth bg-slate-50 relative z-10">
+      <main ref={mainRef} className="flex-1 overflow-y-auto scroll-smooth bg-slate-50 relative z-10 pb-[calc(env(safe-area-inset-bottom)+5rem)]">
         {children}
       </main>
 
       {/* Bottom Navigation */}
       <nav 
-        className="bg-white border-t border-slate-200 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] px-2 z-50 shrink-0 shadow-[0_-8px_15px_-5px_rgba(0,0,0,0.1)] transition-all"
-        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.75rem)' }}
+        className="fixed bottom-0 left-0 right-0 lg:left-auto lg:right-auto lg:w-full lg:max-w-5xl bg-white border-t border-slate-200 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] px-2 z-[100] shadow-[0_-10px_20px_-5px_rgba(0,0,0,0.1)]"
+        style={{ 
+          paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.75rem)',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: '100%'
+        }}
       >
         <ul className="flex justify-around items-center max-w-lg mx-auto w-full gap-1">
           <NavItem 
