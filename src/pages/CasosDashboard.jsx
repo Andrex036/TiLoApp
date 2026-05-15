@@ -89,6 +89,7 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
   const [sedeFilter, setSedeFilter] = useState('Todas')
   const [gradoFilter, setGradoFilter] = useState('Todos')
   const [estadoFilter, setEstadoFilter] = useState('Todos')
+  const [caseSource, setCaseSource] = useState('')
 
   useEffect(() => {
     const anyModalOpen = isModalOpen || isOldCaseModalOpen || !!selectedAlert || !!selectedStat || !!selectedSede;
@@ -275,6 +276,7 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
 
     const caseData = {
       identificacion: identificacion,
+      identificacionOrigen: formData.get('identificacionOrigen'),
       estudiante: formData.get('estudiante'),
       genero: formData.get('genero'),
       grado: formData.get('grado'),
@@ -282,7 +284,7 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
       motivoRemision: formData.get('motivoConsulta'),
       motivo: formData.get('motivoConsulta'),
       nivelRiesgo: formData.get('nivelRiesgo'),
-      docenteRemitente: formData.get('docenteRemitente'),
+      docenteRemitente: formData.get('docenteRemitente') || '',
       observaciones: formData.get('observaciones'),
     }
 
@@ -300,6 +302,7 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
     setIsModalOpen(false)
     setCreatedCase(null)
     setEditingCase(null)
+    setCaseSource('')
   }
 
   const handleSearchCase = (e) => {
@@ -384,7 +387,12 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
               <div className="fixed inset-0 z-20" onClick={() => setActiveMenuId(null)}></div>
               <div className="absolute right-0 mt-2 w-52 bg-white rounded-2xl shadow-xl border border-slate-100 z-30 py-2 animate-[fadeIn_0.2s_ease-out]">
                 <button
-                  onClick={() => { setEditingCase(c); setIsModalOpen(true); setActiveMenuId(null); }}
+                  onClick={() => { 
+                    setEditingCase(c); 
+                    setCaseSource(c.identificacionOrigen || '');
+                    setIsModalOpen(true); 
+                    setActiveMenuId(null); 
+                  }}
                   className="w-full px-4 py-2.5 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-3"
                 >
                   <FileText size={16} className="text-blue-500" /> Editar Información
@@ -868,8 +876,31 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
                       </div>
                     </div>
                     <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">¿Cómo se identifica el caso? *</label>
+                      <select 
+                        required 
+                        name="identificacionOrigen" 
+                        defaultValue={editingCase?.identificacionOrigen || ''} 
+                        onChange={(e) => setCaseSource(e.target.value)}
+                        className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white text-slate-700 appearance-none"
+                      >
+                        <option value="">Seleccione...</option>
+                        <option value="Por Estudiante">Por Estudiante</option>
+                        <option value="Por Padre de Familia">Por Padre de Familia</option>
+                        <option value="Por Docente">Por Docente</option>
+                      </select>
+                    </div>
+
+                    <div className={caseSource === 'Por Docente' ? 'block' : 'hidden'}>
                       <label className="block text-xs font-bold text-slate-700 mb-1">Docente que remite *</label>
-                      <input required name="docenteRemitente" type="text" defaultValue={editingCase?.docenteRemitente || ''} placeholder="Nombre del docente" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
+                      <input 
+                        required={caseSource === 'Por Docente'} 
+                        name="docenteRemitente" 
+                        type="text" 
+                        defaultValue={editingCase?.docenteRemitente || ''} 
+                        placeholder="Nombre del docente" 
+                        className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" 
+                      />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">Observaciones iniciales (Opcional)</label>
