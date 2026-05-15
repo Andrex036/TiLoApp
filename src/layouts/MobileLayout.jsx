@@ -23,31 +23,34 @@ export default function MobileLayout({ children, currentTab, onTabChange }) {
       </main>
 
       {/* Bottom Navigation */}
-      <nav className="bg-white border-t border-slate-200 pb-safe pt-2 px-6 pb-4 z-50 shrink-0 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-        <ul className="flex justify-between items-center max-w-md mx-auto min-w-[320px] gap-2">
+      <nav 
+        className="bg-white border-t border-slate-200 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] px-2 z-50 shrink-0 shadow-[0_-8px_15px_-5px_rgba(0,0,0,0.1)] transition-all"
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.75rem)' }}
+      >
+        <ul className="flex justify-around items-center max-w-lg mx-auto w-full gap-1">
           <NavItem 
-            icon={<Home size={24} />} 
+            icon={<Home size={22} />} 
             label="Inicio" 
             active={currentTab === 'inicio'} 
             onClick={() => onTabChange && onTabChange('inicio')}
           />
           <NavItem 
-            icon={<Users size={24} />} 
+            icon={<Users size={22} />} 
             label="Casos" 
             active={currentTab === 'casos'} 
             onClick={() => onTabChange && onTabChange('casos')}
           />
           <NavItem 
-            icon={<Calendar size={24} />} 
-            label="Actividades" 
+            icon={<Calendar size={22} />} 
+            label="Agenda" 
             active={currentTab === 'actividades'} 
             onClick={() => onTabChange && onTabChange('actividades')}
           />
           <NavItem 
             icon={
               <div className="relative">
-                <Bell size={24} />
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center border border-white">
+                <Bell size={22} />
+                <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-600 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-white">
                   {activeAlertsCount}
                 </span>
               </div>
@@ -57,7 +60,7 @@ export default function MobileLayout({ children, currentTab, onTabChange }) {
             onClick={() => onTabChange && onTabChange('alertas')}
           />
           <NavItem 
-            icon={<BarChart2 size={24} />} 
+            icon={<BarChart2 size={22} />} 
             label="Reportes" 
             active={currentTab === 'reportes'}
             onClick={() => onTabChange && onTabChange('reportes')}
@@ -73,16 +76,16 @@ function NavItem({ icon, label, active, onClick }) {
   return (
     <li 
       onClick={onClick}
-      className="flex flex-col items-center justify-center gap-1 cursor-pointer"
+      className="flex flex-col items-center justify-center gap-1.5 cursor-pointer flex-1 py-1"
     >
       <div 
-        className={`transition-colors ${
-          active ? 'text-blue-600 animate-nav-active' : 'text-slate-400 hover:text-slate-600'
+        className={`transition-all duration-300 ${
+          active ? 'text-blue-600 scale-110' : 'text-slate-400'
         }`}
       >
         {icon}
       </div>
-      <span className={`text-[11px] font-medium ${active ? 'text-blue-600' : 'text-slate-500'}`}>
+      <span className={`text-[10px] font-bold tracking-tight ${active ? 'text-blue-600' : 'text-slate-500'}`}>
         {label}
       </span>
     </li>
