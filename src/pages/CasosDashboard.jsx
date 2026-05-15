@@ -55,7 +55,7 @@ const caseList = [
     id: "102",
     codigo: "Caso #102",
     estudiante: "M. Gómez",
-    grado: "6°",
+    grado: "3°",
     sede: "Villa Flor JM",
     tipo: "Caso antiguo",
     motivo: "Riesgo psicosocial",
@@ -91,13 +91,14 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
   const [estadoFilter, setEstadoFilter] = useState('Todos')
 
   useEffect(() => {
-    if (isModalOpen || isOldCaseModalOpen) {
+    const anyModalOpen = isModalOpen || isOldCaseModalOpen || !!selectedAlert || !!selectedStat || !!selectedSede;
+    if (anyModalOpen) {
       document.body.classList.add('no-scroll');
     } else {
       document.body.classList.remove('no-scroll');
     }
     return () => document.body.classList.remove('no-scroll');
-  }, [isModalOpen, isOldCaseModalOpen]);
+  }, [isModalOpen, isOldCaseModalOpen, selectedAlert, selectedStat, selectedSede]);
 
   // Support deep linking from other modules (like Alertas)
   useEffect(() => {
@@ -126,11 +127,11 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
       if (activeQuickFilter === 'Activos') matchesQuick = c.estado === 'Activo' || c.estado === 'En seguimiento';
       if (activeQuickFilter === 'Alto riesgo') matchesQuick = c.nivelRiesgo === 'Alto' || c.nivelRiesgo === 'Prioritario';
       if (activeQuickFilter === 'Cerrados') matchesQuick = c.estado === 'Cerrado';
-      
+
       // Filtros de Seguimiento Pendiente (en el periodo actual)
       const currentPeriodId = currentPeriod.id;
       const currentYear = new Date().getFullYear();
-      
+
       const segsInCurrentPeriod = (c.seguimientos || []).filter(s => {
         if (s.eliminado) return false;
         const d = new Date(s.fecha);
@@ -686,6 +687,8 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
                   className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl text-xs px-3 py-3 text-slate-600 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="Todos">Grado</option>
+                  <option value="Prejardín">Prejardín</option>
+                  <option value="Jardín">Jardín</option>
                   <option value="Transición">Transición</option>
                   <option value="1°">1° Primero</option>
                   <option value="2°">2° Segundo</option>
@@ -739,8 +742,8 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
 
       {/* Modal Crear Caso / Verificación de Éxito */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-[fadeIn_0.2s_ease-out]">
-          <div className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden animate-[slideUp_0.3s_ease-out]">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 flex items-center justify-center p-4 animate-[fadeIn_0.2s_ease-out]">
+          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-[slideUp_0.3s_ease-out]">
 
             {createdCase ? (
               <div className="p-8 text-center animate-[fadeIn_0.3s_ease-out]">
@@ -777,7 +780,7 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
               <>
                 <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                   <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                    {editingCase ? <FileText size={20} className="text-blue-600" /> : <UserPlus size={20} className="text-blue-600" />} 
+                    {editingCase ? <FileText size={20} className="text-blue-600" /> : <UserPlus size={20} className="text-blue-600" />}
                     {editingCase ? 'Editar información del caso' : 'Crear caso nuevo'}
                   </h2>
                   <button onClick={handleCloseModal} className="p-2 bg-white rounded-full text-slate-400 hover:text-slate-600 shadow-sm border border-slate-100"><X size={18} /></button>
@@ -817,18 +820,14 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
                         <label className="block text-xs font-bold text-slate-700 mb-1">Grado *</label>
                         <select required name="grado" defaultValue={editingCase?.grado || ''} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white text-slate-700 appearance-none">
                           <option value="">Seleccione...</option>
+                          <option value="Prejardín">Prejardín</option>
+                          <option value="Jardín">Jardín</option>
                           <option value="Transición">Transición</option>
                           <option value="1°">1° Primero</option>
                           <option value="2°">2° Segundo</option>
                           <option value="3°">3° Tercero</option>
                           <option value="4°">4° Cuarto</option>
                           <option value="5°">5° Quinto</option>
-                          <option value="6°">6° Sexto</option>
-                          <option value="7°">7° Séptimo</option>
-                          <option value="8°">8° Octavo</option>
-                          <option value="9°">9° Noveno</option>
-                          <option value="10°">10° Décimo</option>
-                          <option value="11°">11° Once</option>
                         </select>
                       </div>
                       <div>
@@ -884,21 +883,21 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
                     </div>
                   </div>
 
-                <div className="p-5 border-t border-slate-100 bg-slate-50/50 flex gap-3 shrink-0">
-                  <button type="button" onClick={handleCloseModal} className="flex-1 py-3 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">Cancelar</button>
-                  <button type="submit" className="flex-1 py-3 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-sm shadow-blue-600/30">
-                    {editingCase ? 'Guardar Cambios' : 'Registrar Caso'}
-                  </button>
-                </div>
-              </form>
-            </>
+                  <div className="p-5 border-t border-slate-100 bg-slate-50/50 flex gap-3 shrink-0">
+                    <button type="button" onClick={handleCloseModal} className="flex-1 py-3 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">Cancelar</button>
+                    <button type="submit" className="flex-1 py-3 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-sm shadow-blue-600/30">
+                      {editingCase ? 'Guardar Cambios' : 'Registrar Caso'}
+                    </button>
+                  </div>
+                </form>
+              </>
             )}
           </div>
         </div>
       )}
       {isOldCaseModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-[fadeIn_0.2s_ease-out]">
-          <div className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden animate-[slideUp_0.3s_ease-out] flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 flex items-center justify-center p-4 animate-[fadeIn_0.2s_ease-out]">
+          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-[slideUp_0.3s_ease-out] flex flex-col max-h-[85vh]">
             <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
               <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2"><History size={20} className="text-purple-600" /> Seguimiento caso antiguo</h2>
               <button onClick={handleCloseOldCaseModal} className="p-2 bg-white rounded-full text-slate-400 hover:text-slate-600 shadow-sm border border-slate-100"><X size={18} /></button>
@@ -988,8 +987,8 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
 
       {/* Modal Detalle de Alertas */}
       {selectedAlert && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-[fadeIn_0.2s_ease-out]">
-          <div className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden animate-[slideUp_0.3s_ease-out] flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 flex items-center justify-center p-4 animate-[fadeIn_0.2s_ease-out]">
+          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-[slideUp_0.3s_ease-out] flex flex-col max-h-[85vh]">
             <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
               <div className="flex items-center gap-2">
                 <div className={`p-2 rounded-lg ${selectedAlert.type === 'danger' ? 'bg-red-100 text-red-600' :
@@ -1040,8 +1039,8 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
       )}
 
       {selectedStat && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-[fadeIn_0.2s_ease-out]">
-          <div className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden animate-[slideUp_0.3s_ease-out] flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 flex items-center justify-center p-4 animate-[fadeIn_0.2s_ease-out]">
+          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-[slideUp_0.3s_ease-out] flex flex-col max-h-[85vh]">
             <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
               <div className="flex items-center gap-2">
                 <div className={`p-2 rounded-lg ${selectedStat.bg} ${selectedStat.color}`}>
@@ -1098,8 +1097,8 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
 
       {/* Modal Detalle por Sede */}
       {selectedSede && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-[fadeIn_0.2s_ease-out]">
-          <div className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden animate-[slideUp_0.3s_ease-out] flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 flex items-center justify-center p-4 animate-[fadeIn_0.2s_ease-out]">
+          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-[slideUp_0.3s_ease-out] flex flex-col max-h-[85vh]">
             <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
               <div className="flex items-center gap-2">
                 <div className={`p-2 rounded-lg text-white ${selectedSede.color}`}>

@@ -16,6 +16,7 @@ import {
   Info,
   Shield,
   Heart,
+  Activity,
   FileBox,
   ChevronDown
 } from 'lucide-react';
@@ -98,12 +99,30 @@ export default function ReportesDashboard({ onNavigate }) {
     }));
 
     // Route Activations
-    const icbfCount = filteredCases.filter(c => c.rutaActivada?.includes('ICBF')).length;
-    const saludCount = filteredCases.filter(c => c.rutaActivada?.includes('Salud')).length;
-    const ambasCount = filteredCases.filter(c => c.rutaActivada?.includes('ICBF') && c.rutaActivada?.includes('Salud')).length;
+    const countRoute = (keyword) => filteredCases.filter(c => {
+      if (!c.rutaActivada) return false;
+      const routes = Array.isArray(c.rutaActivada) ? c.rutaActivada : [c.rutaActivada];
+      return routes.some(r => typeof r === 'string' && r.toUpperCase().includes(keyword.toUpperCase()));
+    }).length;
+
+    const icbfCount = countRoute('ICBF');
+    const saludCount = countRoute('Salud');
+    const policiaCount = countRoute('Policía');
+    const comisariaCount = countRoute('Comisaría');
+    const fiscaliaCount = countRoute('Fiscalía');
+    
+    const totalRutasCount = filteredCases.filter(c => c.rutaActivada && (Array.isArray(c.rutaActivada) ? c.rutaActivada.length > 0 : true)).length;
+
+    const ambasCount = filteredCases.filter(c => {
+      if (!c.rutaActivada) return false;
+      const routes = Array.isArray(c.rutaActivada) ? c.rutaActivada : [c.rutaActivada];
+      const hasICBF = routes.some(r => typeof r === 'string' && r.toUpperCase().includes('ICBF'));
+      const hasSalud = routes.some(r => typeof r === 'string' && r.toUpperCase().includes('SALUD'));
+      return hasICBF && hasSalud;
+    }).length;
 
     // Cases by Grade
-    const gradesList = ['Transición', '1°', '2°', '3°', '4°', '5°', '6°', '7°', '8°', '9°', '10°', '11°'];
+    const gradesList = ['Prejardín', 'Jardín', 'Transición', '1°', '2°', '3°', '4°', '5°'];
     const dynamicByGrade = gradesList.map(grade => {
       const gCases = filteredCases.filter(c => c.grado === grade).length;
       return {
@@ -119,18 +138,63 @@ export default function ReportesDashboard({ onNavigate }) {
       const sCases = filteredCases.filter(c => c.sede === s);
       const sActs = filteredActs.filter(a => a.sede === s);
       const sAlerts = filteredAlerts.filter(al => al.sede === s);
+      const countSedeRoute = (sCases, keyword) => sCases.filter(c => {
+        if (!c.rutaActivada) return false;
+        const routes = Array.isArray(c.rutaActivada) ? c.rutaActivada : [c.rutaActivada];
+        return routes.some(r => typeof r === 'string' && r.toUpperCase().includes(keyword.toUpperCase()));
+      }).length;
+
       return {
         sede: s,
         total: sCases.length,
         activos: sCases.filter(c => c.estado !== 'Cerrado').length,
         cerrados: sCases.filter(c => c.estado === 'Cerrado').length,
         alertas: sAlerts.length,
-        icbf: sCases.filter(c => c.rutaActivada?.includes('ICBF')).length,
-        salud: sCases.filter(c => c.rutaActivada?.includes('Salud')).length,
-        acts: sActs.length,
+        icbf: countSedeRoute(sCases, 'ICBF'),
+        salud: countSedeRoute(sCases, 'Salud'),
+        policia: countSedeRoute(sCases, 'Policía'),
+        comisaria: countSedeRoute(sCases, 'Comisaría'),
+        fiscalia: countSedeRoute(sCases, 'Fiscalía'),
+        acts: sActs.length + sCases.reduce((acc, curr) => {
+          const validSegs = (curr.seguimientos || []).filter(s => s.fecha >= startDate && s.fecha <= endDate);
+          return acc + validSegs.length;
+        }, 0),
         segPendientes: sActs.filter(a => a.estado === 'Pendiente').length
       };
     }).filter(row => sedeFilter === 'Todas las sedes' || row.sede === sedeFilter);
+
+    // 3. Actividades y Seguimientos Aggregation
+    const allCaseSegs = filteredCases.flatMap(c => (c.seguimientos || []).map(s => ({ ...s, sede: c.sede })))
+      .filter(s => s.fecha >= startDate && s.fecha <= endDate);
+
+    const countSegs = (keyword) => {
+      const fromActs = filteredActs.filter(a => 
+        (a.tipo === 'Seguimiento' || a.tipo === 'Atención') && 
+        (a.subtipo?.includes(keyword) || a.titulo?.includes(keyword))
+      ).length;
+      
+      const fromCases = allCaseSegs.filter(s => 
+        s.tipoSeguimiento?.includes(keyword) || s.descripcion?.includes(keyword)
+      ).length;
+      
+      return fromActs + fromCases;
+    };
+
+    const actsSummary = {
+      realizadas: filteredActs.filter(a => a.estado === 'Realizada').length,
+      pendientes: filteredActs.filter(a => a.estado === 'Pendiente').length,
+      citaciones: filteredActs.filter(a => a.tipo === 'Citación' && a.estado === 'No asistió').length,
+      estudiante: countSegs('Estudiante'),
+      familia: countSegs('Padre') + countSegs('Familia'),
+      docente: countSegs('Docente')
+    };
+
+    const alertsSummary = {
+      activas: filteredAlerts.filter(al => al.estado === 'Activa').length,
+      atendidas: filteredAlerts.filter(al => al.estado === 'Atendida').length,
+      prioritarias: filteredAlerts.filter(al => al.prioridad === 'Prioritaria').length,
+      vencidas: filteredAlerts.filter(al => al.estado === 'Vencida').length
+    };
 
     return {
       summary: { totalCases, closedCases, followUpCases, activeAlerts },
@@ -138,24 +202,16 @@ export default function ReportesDashboard({ onNavigate }) {
       byGender: dynamicByGender,
       byGrade: dynamicByGrade,
       routes: {
-        icbf: { count: icbfCount, percentage: totalCases > 0 ? `${((icbfCount / totalCases) * 100).toFixed(1)}%` : '0%' },
-        salud: { count: saludCount, percentage: totalCases > 0 ? `${((saludCount / totalCases) * 100).toFixed(1)}%` : '0%' },
-        ambas: { count: ambasCount, percentage: totalCases > 0 ? `${((ambasCount / totalCases) * 100).toFixed(1)}%` : '0%' }
+        total: { count: totalRutasCount, percentage: totalCases > 0 ? `${((totalRutasCount / totalCases) * 100).toFixed(1)}%` : '0%' },
+        icbf: { count: icbfCount },
+        salud: { count: saludCount },
+        policia: { count: policiaCount },
+        comisaria: { count: comisariaCount },
+        fiscalia: { count: fiscaliaCount },
+        ambas: { count: ambasCount }
       },
-      actsSummary: {
-        realizadas: filteredActs.filter(a => a.estado === 'Realizada').length,
-        pendientes: filteredActs.filter(a => a.estado === 'Pendiente').length,
-        citaciones: filteredActs.filter(a => a.tipo === 'Citación' && a.estado === 'No asistió').length,
-        estudiante: filteredActs.filter(a => a.tipo === 'Seguimiento' && a.subtipo === 'Estudiante').length,
-        familia: filteredActs.filter(a => a.tipo === 'Seguimiento' && a.subtipo === 'Familia').length,
-        docente: filteredActs.filter(a => a.tipo === 'Seguimiento' && a.subtipo === 'Docente').length
-      },
-      alertsSummary: {
-        activas: filteredAlerts.filter(al => al.estado === 'Activa').length,
-        atendidas: filteredAlerts.filter(al => al.estado === 'Atendida').length,
-        prioritarias: filteredAlerts.filter(al => al.prioridad === 'Prioritaria').length,
-        vencidas: filteredAlerts.filter(al => al.estado === 'Vencida').length
-      },
+      actsSummary,
+      alertsSummary,
       table: consolidated
     };
   }, [cases, activities, alerts, sedeFilter, startDate, endDate]);
@@ -503,45 +559,63 @@ export default function ReportesDashboard({ onNavigate }) {
             <Shield size={20} className="text-slate-600"/>
             <h2 className="text-base font-bold text-slate-800">Número de activaciones de ruta</h2>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             <RouteCard 
-              title="ICBF" 
-              count={reportData.routes.icbf.count} 
-              desc="activaciones" 
-              subtext={`${reportData.routes.icbf.percentage} de los casos`} 
-              icon={<Users size={24}/>} 
-              color="text-rose-600" 
-              bg="bg-rose-50" 
-              border="border-rose-100" 
+              title="Total" 
+              count={reportData.routes.total.count} 
+              desc="Estudiantes" 
+              icon={<Shield size={22}/>} 
+              color="text-blue-600" 
+              bg="bg-blue-50" 
             />
             <RouteCard 
               title="Salud" 
               count={reportData.routes.salud.count} 
-              desc="activaciones" 
-              subtext={`${reportData.routes.salud.percentage} de los casos`} 
-              icon={<Heart size={24}/>} 
+              desc="EPS / Hospital" 
+              icon={<Heart size={22}/>} 
               color="text-green-600" 
               bg="bg-green-50" 
-              border="border-green-100" 
             />
             <RouteCard 
-              title="Ambas rutas" 
-              count={reportData.routes.ambas.count} 
-              desc="activaciones" 
-              subtext={`${reportData.routes.ambas.percentage} de los casos`} 
-              icon={<FileBox size={24}/>} 
+              title="ICBF" 
+              count={reportData.routes.icbf.count} 
+              desc="Bienestar Fam." 
+              icon={<Users size={22}/>} 
+              color="text-rose-600" 
+              bg="bg-rose-50" 
+            />
+            <RouteCard 
+              title="Policía" 
+              count={reportData.routes.policia.count} 
+              desc="Inf. y Adol." 
+              icon={<Shield size={22}/>} 
+              color="text-indigo-600" 
+              bg="bg-indigo-50" 
+            />
+            <RouteCard 
+              title="Comisaría" 
+              count={reportData.routes.comisaria.count} 
+              desc="de Familia" 
+              icon={<Activity size={22}/>} 
+              color="text-orange-600" 
+              bg="bg-orange-50" 
+            />
+            <RouteCard 
+              title="Fiscalía" 
+              count={reportData.routes.fiscalia.count} 
+              desc="Justicia" 
+              icon={<FileBox size={22}/>} 
               color="text-purple-600" 
               bg="bg-purple-50" 
-              border="border-purple-100" 
             />
-            <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl flex items-start gap-3">
+          </div>
+          <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl flex items-start gap-3 mt-6">
               <Info size={20} className="text-blue-500 shrink-0 mt-0.5"/>
               <div>
                 <h3 className="font-bold text-blue-900 text-sm mb-1">Información</h3>
                 <p className="text-xs text-blue-800/80 leading-relaxed">Un mismo caso puede tener activación de una o ambas rutas de atención.</p>
               </div>
             </div>
-          </div>
         </section>
 
         {/* 9 & 10. Actividades, seguimientos y alertas */}
@@ -597,14 +671,14 @@ export default function ReportesDashboard({ onNavigate }) {
               <thead>
                 <tr className="bg-white text-slate-500 uppercase font-bold border-b border-slate-100">
                   <th className="px-5 py-4 sticky left-0 bg-white shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] z-10">Sede</th>
-                  <th className="px-4 py-4 text-center">Total Casos</th>
-                  <th className="px-4 py-4 text-center">Activos</th>
-                  <th className="px-4 py-4 text-center">Cerrados</th>
-                  <th className="px-4 py-4 text-center bg-red-50/30 text-red-700">Alertas</th>
-                  <th className="px-4 py-4 text-center">Ruta ICBF</th>
-                  <th className="px-4 py-4 text-center">Ruta Salud</th>
-                  <th className="px-4 py-4 text-center">Actividades</th>
-                  <th className="px-4 py-4 text-center bg-orange-50/30 text-orange-700">Seg. Ptes</th>
+                  <th className="px-3 py-4 text-center">Total</th>
+                  <th className="px-3 py-4 text-center">Salud</th>
+                  <th className="px-3 py-4 text-center">ICBF</th>
+                  <th className="px-3 py-4 text-center">Policía</th>
+                  <th className="px-3 py-4 text-center">Comisaría</th>
+                  <th className="px-3 py-4 text-center">Fiscalía</th>
+                  <th className="px-3 py-4 text-center">Alertas</th>
+                  <th className="px-3 py-4 text-center">Actividades</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -613,24 +687,18 @@ export default function ReportesDashboard({ onNavigate }) {
                     <td className="px-5 py-3.5 font-bold text-slate-700 sticky left-0 bg-white group-hover:bg-blue-50/30 transition-colors shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] z-10">
                       {row.sede}
                     </td>
-                    <td className="px-4 py-3.5 text-center">
-                      <span className="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full font-bold">{row.total}</span>
-                    </td>
-                    <td className="px-4 py-3.5 text-center text-slate-600 font-medium">{row.activos}</td>
-                    <td className="px-4 py-3.5 text-center text-slate-500 font-medium">{row.cerrados}</td>
-                    <td className="px-4 py-3.5 text-center bg-red-50/20">
-                      <span className={`px-2.5 py-1 rounded-full font-bold ${row.alertas > 0 ? 'bg-red-100 text-red-700' : 'text-slate-400'}`}>
+                    <td className="px-3 py-3.5 text-center font-bold text-slate-800">{row.total}</td>
+                    <td className="px-3 py-3.5 text-center text-slate-600">{row.salud}</td>
+                    <td className="px-3 py-3.5 text-center text-slate-600">{row.icbf}</td>
+                    <td className="px-3 py-3.5 text-center text-slate-600">{row.policia}</td>
+                    <td className="px-3 py-3.5 text-center text-slate-600">{row.comisaria}</td>
+                    <td className="px-3 py-3.5 text-center text-slate-600">{row.fiscalia}</td>
+                    <td className="px-3 py-3.5 text-center">
+                      <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${row.alertas > 0 ? 'bg-red-100 text-red-700' : 'text-slate-300'}`}>
                         {row.alertas}
                       </span>
                     </td>
-                    <td className="px-4 py-3.5 text-center text-slate-600">{row.icbf}</td>
-                    <td className="px-4 py-3.5 text-center text-slate-600">{row.salud}</td>
-                    <td className="px-4 py-3.5 text-center text-slate-600 font-medium">{row.acts}</td>
-                    <td className="px-4 py-3.5 text-center bg-orange-50/20">
-                      <span className={`px-2.5 py-1 rounded-full font-bold ${row.segPendientes > 0 ? 'bg-orange-100 text-orange-700' : 'text-slate-400'}`}>
-                        {row.segPendientes}
-                      </span>
-                    </td>
+                    <td className="px-3 py-3.5 text-center text-slate-600">{row.acts}</td>
                   </tr>
                 ))}
               </tbody>
@@ -640,14 +708,14 @@ export default function ReportesDashboard({ onNavigate }) {
                     <td className="px-5 py-4 sticky left-0 bg-slate-900 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)] z-10 rounded-bl-2xl">
                       TOTAL GENERAL
                     </td>
-                    <td className="px-4 py-4 text-center text-base font-black">{reportData.summary.totalCases}</td>
-                    <td className="px-4 py-4 text-center opacity-80">{reportData.summary.followUpCases}</td>
-                    <td className="px-4 py-4 text-center opacity-80">{reportData.summary.closedCases}</td>
-                    <td className="px-4 py-4 text-center text-red-400 font-black">{reportData.summary.activeAlerts}</td>
-                    <td className="px-4 py-4 text-center opacity-80">{reportData.routes.icbf.count}</td>
-                    <td className="px-4 py-4 text-center opacity-80">{reportData.routes.salud.count}</td>
-                    <td className="px-4 py-4 text-center opacity-80">{reportData.actsSummary.realizadas + reportData.actsSummary.pendientes}</td>
-                    <td className="px-4 py-4 text-center text-orange-400 font-black rounded-br-2xl">{reportData.actsSummary.pendientes}</td>
+                    <td className="px-3 py-4 text-center text-base font-black">{reportData.table.reduce((acc, curr) => acc + curr.total, 0)}</td>
+                    <td className="px-3 py-4 text-center opacity-80">{reportData.routes.salud.count}</td>
+                    <td className="px-3 py-4 text-center opacity-80">{reportData.routes.icbf.count}</td>
+                    <td className="px-3 py-4 text-center opacity-80">{reportData.routes.policia.count}</td>
+                    <td className="px-3 py-4 text-center opacity-80">{reportData.routes.comisaria.count}</td>
+                    <td className="px-3 py-4 text-center opacity-80">{reportData.routes.fiscalia.count}</td>
+                    <td className="px-3 py-4 text-center text-red-400 font-black">{reportData.table.reduce((acc, curr) => acc + curr.alertas, 0)}</td>
+                    <td className="px-3 py-4 text-center opacity-80 rounded-br-2xl">{reportData.table.reduce((acc, curr) => acc + curr.acts, 0)}</td>
                   </tr>
                 </tfoot>
               )}
@@ -673,18 +741,15 @@ function StatCard({ title, count, comparative, icon, color, bgIcon, className = 
   );
 }
 
-function RouteCard({ title, count, desc, subtext, icon, color, bg, border }) {
+function RouteCard({ title, count, desc, icon, color, bg }) {
   return (
-    <div className={`p-4 rounded-xl border ${bg} ${border} flex flex-col`}>
-      <div className="flex items-center gap-2 mb-2">
-        <div className={color}>{icon}</div>
-        <h3 className={`font-bold ${color}`}>{title}</h3>
+    <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center text-center transition-all">
+      <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 ${bg} ${color}`}>
+        {icon}
       </div>
-      <div className="flex items-baseline gap-1">
-        <span className="text-2xl font-black text-slate-800">{count}</span>
-        <span className="text-xs font-medium text-slate-600">{desc}</span>
-      </div>
-      <p className="text-[10px] text-slate-500 mt-1 font-medium">{subtext}</p>
+      <span className="text-2xl font-black text-slate-800 leading-none">{count}</span>
+      <h3 className="text-[11px] font-bold mt-1.5 text-slate-700 leading-tight uppercase tracking-tight">{title}</h3>
+      <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">{desc}</p>
     </div>
   );
 }

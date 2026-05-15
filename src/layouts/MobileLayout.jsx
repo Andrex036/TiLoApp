@@ -15,7 +15,7 @@ export default function MobileLayout({ children, currentTab, onTabChange }) {
   }, [currentTab])
 
   return (
-    <div className="flex flex-col h-screen max-w-5xl mx-auto bg-slate-50 relative overflow-hidden sm:shadow-2xl sm:border sm:border-slate-200 sm:h-[95vh] sm:mt-[2.5vh] sm:rounded-2xl">
+    <div className="flex flex-col h-full max-w-5xl mx-auto bg-slate-50 relative overflow-hidden sm:shadow-2xl sm:border sm:border-slate-200 sm:h-[95vh] sm:mt-[2.5vh] sm:rounded-2xl">
       
       {/* Main Scrollable Content */}
       <main ref={mainRef} className="flex-1 overflow-y-auto scroll-smooth bg-slate-50 relative z-10">
@@ -23,7 +23,7 @@ export default function MobileLayout({ children, currentTab, onTabChange }) {
       </main>
 
       {/* Bottom Navigation */}
-      <nav className="bg-white border-t border-slate-200 pb-safe pt-2 px-6 pb-4 z-0 shrink-0">
+      <nav className="bg-white border-t border-slate-200 pb-safe pt-2 px-6 pb-4 z-50 shrink-0 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
         <ul className="flex justify-between items-center max-w-md mx-auto min-w-[320px] gap-2">
           <NavItem 
             icon={<Home size={24} />} 

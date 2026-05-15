@@ -38,7 +38,7 @@ function App() {
   }, [])
 
   return (
-    <div className="w-full h-full min-h-screen bg-[var(--color-background)]">
+    <div className="w-full h-screen h-[100dvh] overflow-hidden bg-[var(--color-background)]">
       {showSplash ? (
         <Splash />
       ) : (

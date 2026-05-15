@@ -14,7 +14,7 @@ import {
   ChevronRight,
   Bell,
 } from 'lucide-react';
-import TiLoLogo from '../assets/TiLo_Logo.png';
+import TiLoLogo from '../assets/TiLo_Logo_Cara.png';
 import { useCases } from '../hooks/useCases';
 import { getCurrentPeriod, getFormattedDate } from '../utils/periodUtils';
 import { useActivities } from '../hooks/useActivities';
@@ -111,7 +111,7 @@ export default function HomeDashboard() {
             <img
               src={TiLoLogo}
               alt="TiLo"
-              className="w-full h-full object-contain scale-[2.2] translate-y-[18%]"
+              className="w-full h-full object-contain"
             />
           </div>
           <div className="flex flex-col justify-center">

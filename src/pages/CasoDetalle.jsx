@@ -93,12 +93,25 @@ export default function CasoDetalle({ caseId, onBack }) {
     e.preventDefault()
     const formData = new FormData(e.target)
     const entidad = formData.get('entidad')
+    
+    // 1. Add follow-up record
     addSeguimiento(caseId, {
       fecha: new Date().toISOString().split('T')[0],
       tipoSeguimiento: `Activación Ruta: ${entidad}`,
       descripcion: `Entidad: ${entidad}\nMotivo: ${formData.get('motivo')}\nObservaciones: ${formData.get('descripcion')}`,
       responsable: 'Orientación Escolar'
     })
+
+    // 2. Update case's activated routes for reporting
+    const currentRoutes = caseData.rutaActivada 
+      ? (Array.isArray(caseData.rutaActivada) ? caseData.rutaActivada : [caseData.rutaActivada])
+      : [];
+    
+    if (!currentRoutes.includes(entidad)) {
+      updateCase(caseId, { 
+        rutaActivada: [...currentRoutes, entidad] 
+      });
+    }
     
     setShowRutaModal(false)
     alert(`Ruta con ${entidad} activada exitosamente.`)
@@ -381,8 +394,8 @@ export default function CasoDetalle({ caseId, onBack }) {
       </div>
 
       {showSeguimientoModal && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-[fadeIn_0.2s_ease-out]">
-          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden animate-[slideUp_0.3s_ease-out] flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 flex items-center justify-center p-4 animate-[fadeIn_0.2s_ease-out]">
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-[slideUp_0.3s_ease-out] flex flex-col max-h-[85vh]">
             <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
               <h2 className="text-lg font-bold text-slate-800">{editingSeguimiento ? 'Editar Seguimiento' : 'Nuevo Seguimiento'}</h2>
               <button onClick={() => setShowSeguimientoModal(false)} className="p-2 hover:bg-white rounded-full text-slate-400 transition-colors"><X size={18}/></button>
@@ -435,8 +448,8 @@ export default function CasoDetalle({ caseId, onBack }) {
       )}
 
       {showCitaModal && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-[fadeIn_0.2s_ease-out]">
-          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden animate-[slideUp_0.3s_ease-out] flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 flex items-center justify-center p-4 animate-[fadeIn_0.2s_ease-out]">
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-[slideUp_0.3s_ease-out] flex flex-col max-h-[85vh]">
             <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
               <h2 className="text-lg font-bold text-slate-800">Agendar Cita</h2>
               <button onClick={() => setShowCitaModal(false)} className="p-2 hover:bg-white rounded-full text-slate-400 transition-colors"><X size={18}/></button>
@@ -481,8 +494,8 @@ export default function CasoDetalle({ caseId, onBack }) {
       )}
 
       {showRutaModal && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-[fadeIn_0.2s_ease-out]">
-          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden animate-[slideUp_0.3s_ease-out] flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 flex items-center justify-center p-4 animate-[fadeIn_0.2s_ease-out]">
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-[slideUp_0.3s_ease-out] flex flex-col max-h-[85vh]">
             <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
               <h2 className="text-lg font-bold text-red-700 flex items-center gap-2"><Activity size={20}/> Activar Ruta</h2>
               <button onClick={() => setShowRutaModal(false)} className="p-2 hover:bg-white rounded-full text-slate-400 transition-colors"><X size={18}/></button>

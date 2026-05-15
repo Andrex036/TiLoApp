@@ -22,12 +22,14 @@ export const casesByReason = [
 ];
 
 export const casesByGrade = [
-  { grade: '6°', cases: 5, percentage: '13.2%' },
-  { grade: '7°', cases: 6, percentage: '15.8%' },
-  { grade: '8°', cases: 9, percentage: '23.7%' },
-  { grade: '9°', cases: 8, percentage: '21.1%' },
-  { grade: '10°', cases: 6, percentage: '15.8%' },
-  { grade: '11°', cases: 4, percentage: '10.5%' }
+  { grade: 'Prejardín', cases: 3, percentage: '7.9%' },
+  { grade: 'Jardín', cases: 4, percentage: '10.5%' },
+  { grade: 'Transición', cases: 5, percentage: '13.2%' },
+  { grade: '1°', cases: 6, percentage: '15.8%' },
+  { grade: '2°', cases: 7, percentage: '18.4%' },
+  { grade: '3°', cases: 5, percentage: '13.2%' },
+  { grade: '4°', cases: 4, percentage: '10.5%' },
+  { grade: '5°', cases: 4, percentage: '10.5%' }
 ];
 
 export const casesByGender = [

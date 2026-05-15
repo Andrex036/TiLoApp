@@ -19,7 +19,7 @@ export const initialCases = [
     identificacion: "102",
     codigo: "Caso #102",
     estudiante: "María García",
-    grado: "8°",
+    grado: "3°",
     sede: "Villa Flor (JT)",
     tipoCaso: "Antiguo",
     motivo: "Académico",
@@ -34,7 +34,7 @@ export const initialCases = [
     identificacion: "103",
     codigo: "Caso #103",
     estudiante: "Luis Rodríguez",
-    grado: "11°",
+    grado: "Transición",
     sede: "Santa Mónica (JM)",
     tipoCaso: "Nuevo",
     motivo: "Riesgo psicosocial",
@@ -42,6 +42,7 @@ export const initialCases = [
     nivelRiesgo: "Prioritario",
     createdAt: "2026-05-10T14:30:00.000Z",
     docenteRemitente: "Sandra Torres",
+    rutaActivada: ["ICBF", "Sector Salud (EPS/Hospital)"],
     seguimientos: []
   },
   {

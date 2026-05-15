@@ -96,7 +96,7 @@ export const allActivities = [
     prioridad: "Alta",
     estado: "Programada",
     responsable: "Orientación escolar",
-    estudianteRelacionado: "Grupo 7°A",
+    estudianteRelacionado: "Grupo 4°A",
     lugar: "Salón de audiovisuales",
     color: "orange"
   },
@@ -162,14 +162,14 @@ export const allActivities = [
 // Datos derivados para Dashboard principal
 export const todayActivities = [
   { id: 1, time: '08:00', title: 'Reunión con padre de familia', detail: 'Caso #101 – Juan Pérez' },
-  { id: 2, time: '10:30', title: 'Seguimiento caso #102', detail: 'Estudiante grado 6°' },
+  { id: 2, time: '10:30', title: 'Seguimiento caso #102', detail: 'Estudiante grado 3°' },
   { id: 3, time: '12:00', title: 'Comité de convivencia escolar', detail: 'Sala de reuniones' },
 ];
 
 export const tomorrowActivities = [
   { id: 1, time: '08:00', title: 'Cita con estudiante', detail: 'Caso #105 – Grado 5°' },
   { id: 2, time: '11:00', title: 'Reunión con docente', detail: 'Caso #98 – Docente tutor' },
-  { id: 3, time: '02:00', title: 'Taller habilidades sociales', detail: 'Grupo 7°A' },
+  { id: 3, time: '02:00', title: 'Taller habilidades sociales', detail: 'Grupo 4°A' },
 ];
 
 export const calendarEvents = [
