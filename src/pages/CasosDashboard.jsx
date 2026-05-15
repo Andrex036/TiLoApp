@@ -258,18 +258,18 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
   const handleCreateCase = (e) => {
     e.preventDefault()
     const formData = new FormData(e.target)
-    const identificacion = formData.get('identificacion')
-    const confirmIdentificacion = formData.get('confirmIdentificacion')
+    const identificacion = formData.get('identificacion') || '';
+    const confirmIdentificacion = formData.get('confirmIdentificacion') || '';
 
-    // Validar coincidencia de identificación si es nuevo
-    if (!editingCase && identificacion !== confirmIdentificacion) {
+    // Validar coincidencia de identificación si es nuevo Y se ingresó algo
+    if (!editingCase && identificacion && identificacion !== confirmIdentificacion) {
       alert("Los números de identificación no coinciden. Por favor verifícalos.")
       return;
     }
 
-    // Validar duplicidad si es nuevo
-    if (!editingCase && cases.some(c => c.id === identificacion || c.identificacion === identificacion)) {
-      alert("Ya existe un caso registrado para este número de identificación. Por favor, usa la opción 'Seguimiento caso antiguo'.")
+    // Validar duplicidad si es nuevo Y se ingresó algo
+    if (!editingCase && identificacion && cases.some(c => c.identificacion === identificacion)) {
+      alert("Ya existe un caso registrado para este número de identificación.");
       return;
     }
 
@@ -279,7 +279,7 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
       genero: formData.get('genero'),
       grado: formData.get('grado'),
       sede: formData.get('sede'),
-      motivoRemision: formData.get('motivoConsulta'), // Unified field from previous update
+      motivoRemision: formData.get('motivoConsulta'),
       motivo: formData.get('motivoConsulta'),
       nivelRiesgo: formData.get('nivelRiesgo'),
       docenteRemitente: formData.get('docenteRemitente'),
@@ -291,14 +291,8 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
       setCreatedCase({ ...editingCase, ...caseData, isEdit: true })
       setEditingCase(null)
     } else {
-      const newCase = {
-        ...caseData,
-        id: identificacion,
-        tipoCaso: 'Nuevo',
-        estado: 'Activo',
-      }
-      const savedCase = createCase(newCase)
-      setCreatedCase(savedCase)
+      const savedCase = createCase(caseData)
+      setCreatedCase({ ...savedCase, isEdit: false })
     }
   }
 
@@ -790,13 +784,13 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
                   <div className="space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">Identificación (Documento) *</label>
-                        <input required name="identificacion" type="number" defaultValue={editingCase?.identificacion || ''} placeholder="Documento" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Identificación (Opcional)</label>
+                        <input name="identificacion" type="number" defaultValue={editingCase?.identificacion?.toString().startsWith('case-') ? '' : editingCase?.identificacion} placeholder="Número de documento" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
                       </div>
                       {!editingCase && (
                         <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1">Confirmar Identificación *</label>
-                          <input required name="confirmIdentificacion" type="number" placeholder="Repite documento" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
+                          <label className="block text-xs font-bold text-slate-700 mb-1">Confirmar Identificación</label>
+                          <input name="confirmIdentificacion" type="number" placeholder="Repite para verificar" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
                         </div>
                       )}
                     </div>

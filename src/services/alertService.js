@@ -102,6 +102,24 @@ export const alertService = {
           });
         }
 
+        // Alerta de Identificación Faltante
+        if (!c.identificacion || c.identificacion.toString().startsWith('case-')) {
+          alertService.createAlert({
+            tipo: 'Caso',
+            titulo: 'Falta número de identificación',
+            descripcion: `El ${c.codigo} (${c.estudiante}) no tiene un número de identificación registrado.`,
+            prioridad: 'Media',
+            estado: 'Pendiente',
+            fecha: today,
+            sede: c.sede,
+            grado: c.grado,
+            caseId: c.id,
+            codigoCaso: c.codigo,
+            accionSugerida: 'Completar identificación',
+            rutaDestino: 'casos'
+          });
+        }
+
         // 3 missed citations
         const missed = c.citaciones ? c.citaciones.filter(cit => cit.estado === 'No asistió').length : 0;
         if (missed >= 3) {
