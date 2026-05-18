@@ -336,14 +336,34 @@ export default function CasoDetalle({ caseId, onBack }) {
                       ) : (
                         <>
                           <div className="flex justify-between items-start mb-2">
-                            <div className="flex gap-2 items-center">
+                            <div className="flex gap-2 items-center flex-wrap">
                               <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2 py-1 rounded-md">{seg.tipoSeguimiento}</span>
                               {seg.hasSoporte && (
                                 <span className="flex items-center gap-1 text-[10px] font-bold text-green-700 bg-green-50 px-2 py-1 rounded-md">
                                   <Paperclip size={10} /> Soporte
                                 </span>
                               )}
-                              {seg.editado && (
+                              {seg.esCita && seg.requiereSoporte && !seg.citaConfirmada && (
+                                <span className="flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-1 rounded-md">
+                                  <Paperclip size={10} /> Requiere soporte
+                                </span>
+                              )}
+                              {seg.esCita && seg.citaConfirmada && (
+                                <span className="flex items-center gap-1 text-[10px] font-bold text-green-700 bg-green-50 px-2 py-1 rounded-md">
+                                  <CheckCircle2 size={10} /> Confirmada
+                                </span>
+                              )}
+                              {seg.esCitaResultado && seg.asistio && (
+                                <span className="flex items-center gap-1 text-[10px] font-bold text-green-700 bg-green-50 px-2 py-1 rounded-md">
+                                  <CheckCircle2 size={10} /> Asistió
+                                </span>
+                              )}
+                              {seg.esCitaResultado && !seg.asistio && (
+                                <span className="flex items-center gap-1 text-[10px] font-bold text-red-700 bg-red-50 px-2 py-1 rounded-md">
+                                  <XCircle size={10} /> No se presentó
+                                </span>
+                              )}
+                              {seg.editado && !seg.esCita && (
                                 <span className="flex items-center gap-1 text-[10px] font-bold text-orange-700 bg-orange-50 px-2 py-1 rounded-md">
                                   <Edit2 size={10} /> Editado
                                 </span>
@@ -365,6 +385,14 @@ export default function CasoDetalle({ caseId, onBack }) {
                           <div className="relative">
                             <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{seg.descripcion}</p>
                           </div>
+                          {seg.esCita && !seg.citaConfirmada && (
+                            <button
+                              onClick={() => { setCitaParaConfirmar(seg); setShowConfirmCitaModal(true) }}
+                              className="mt-3 w-full flex items-center justify-center gap-2 py-2 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-xl border border-blue-100 transition-colors"
+                            >
+                              <CheckCircle2 size={14} /> Confirmar asistencia
+                            </button>
+                          )}
 
                           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end mt-3 gap-1">
                              <div className="text-[9px] text-slate-400 italic">
