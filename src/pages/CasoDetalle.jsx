@@ -377,9 +377,11 @@ export default function CasoDetalle({ caseId, onBack }) {
                                     <Edit2 size={14} />
                                   </button>
                                 )}
-                                <button onClick={() => handleDeleteSeguimiento(seg.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Eliminar">
-                                  <X size={14} />
-                                </button>
+                                {!seg.esCita && !seg.esCitaResultado && (
+                                  <button onClick={() => handleDeleteSeguimiento(seg.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Eliminar">
+                                    <X size={14} />
+                                  </button>
+                                )}
                               </div>
                             </div>
                           </div>
