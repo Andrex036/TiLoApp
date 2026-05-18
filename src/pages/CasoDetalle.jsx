@@ -115,7 +115,7 @@ export default function CasoDetalle({ caseId, onBack }) {
     const formData = new FormData(e.target)
     const asistio = formData.get('asistio') === 'si'
     const trajoSoporte = formData.get('trajoSoporte') === 'si'
-    const observaciones = formData.get('observaciones')
+    const observaciones = formData.get('observaciones')?.trim()
 
     const lineas = [
       `Asistió: ${asistio ? 'Sí' : 'No'}`,
@@ -123,7 +123,7 @@ export default function CasoDetalle({ caseId, onBack }) {
       observaciones ? `Observaciones: ${observaciones}` : null
     ].filter(Boolean).join('\n')
 
-    addSeguimiento(caseId, {
+    const resultSeg = addSeguimiento(caseId, {
       fecha: new Date().toISOString().split('T')[0],
       tipoSeguimiento: 'Resultado de cita',
       descripcion: lineas,
@@ -133,7 +133,10 @@ export default function CasoDetalle({ caseId, onBack }) {
       trajoSoporte: citaParaConfirmar.requiereSoporte ? trajoSoporte : null
     })
 
-    updateSeguimiento(caseId, citaParaConfirmar.id, { citaConfirmada: true })
+    updateSeguimiento(caseId, citaParaConfirmar.id, {
+      citaConfirmada: true,
+      citaResultadoId: resultSeg?.id ?? null
+    })
 
     setShowConfirmCitaModal(false)
     setCitaParaConfirmar(null)
