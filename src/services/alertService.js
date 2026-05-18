@@ -12,19 +12,16 @@ export const alertService = {
     if (!existing) {
       saveData(ALERTS_KEY, alertsMock);
     }
-    
-    // Generar alertas iniciales
+
     alertService.generateAlerts();
 
-    // Suscribirse a cambios en casos para regenerar alertas automáticamente
-    subscribe('tilo_cases', () => {
-      alertService.generateAlerts();
-    });
-    
-    // También suscribirse a actividades
-    subscribe('tilo_activities', () => {
-      alertService.generateAlerts();
-    });
+    const unsubCases = subscribe('tilo_cases', () => alertService.generateAlerts());
+    const unsubActivities = subscribe('tilo_activities', () => alertService.generateAlerts());
+
+    return () => {
+      unsubCases();
+      unsubActivities();
+    };
   },
 
   getAlerts: () => {
@@ -97,6 +94,7 @@ export const alertService = {
             grado: c.grado,
             caseId: c.id,
             codigoCaso: c.codigo,
+            estudiante: c.estudiante,
             accionSugerida: 'Revisar caso',
             rutaDestino: 'casos'
           });
@@ -115,6 +113,7 @@ export const alertService = {
             grado: c.grado,
             caseId: c.id,
             codigoCaso: c.codigo,
+            estudiante: c.estudiante,
             accionSugerida: 'Completar identificación',
             rutaDestino: 'casos'
           });
@@ -133,6 +132,7 @@ export const alertService = {
             sede: c.sede,
             caseId: c.id,
             codigoCaso: c.codigo,
+            estudiante: c.estudiante,
             accionSugerida: 'Revisar historial',
             rutaDestino: 'casos'
           });
@@ -182,6 +182,7 @@ export const alertService = {
                 grado: c.grado,
                 caseId: c.id,
                 codigoCaso: c.codigo,
+                estudiante: c.estudiante,
                 periodoId: pId,
                 periodoNombre: pName,
                 tipoFaltante: type.key,

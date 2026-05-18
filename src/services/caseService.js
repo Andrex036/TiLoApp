@@ -27,11 +27,15 @@ export const caseService = {
   createCase: (caseData) => {
     const cases = caseService.getCases();
     const newId = caseData.identificacion || caseData.id || `case-${Date.now()}`;
+    const maxNum = cases.reduce((max, c) => {
+      const match = c.codigo?.match(/\d+/);
+      return match ? Math.max(max, parseInt(match[0])) : max;
+    }, 100);
     const newCase = {
       ...caseData,
       id: newId,
       identificacion: caseData.identificacion || newId,
-      codigo: `Caso #${cases.length + 101}`,
+      codigo: `Caso #${maxNum + 1}`,
       tipoCaso: 'Nuevo',
       estado: 'Activo',
       seguimientos: [],
@@ -134,8 +138,8 @@ export const caseService = {
    */
   deleteCase: (id) => {
     const cases = caseService.getCases();
-    const filtered = cases.filter(c => c.id !== id);
-    saveData(CASES_KEY, filtered);
+    if (!cases.some(c => c.id === id)) return false;
+    saveData(CASES_KEY, cases.filter(c => c.id !== id));
     return true;
   }
 };

@@ -35,39 +35,6 @@ const quickFilters = [
   'Todos', 'Activos', 'Alto riesgo', 'Seg. Estudiante', 'Seg. Docente', 'Seg. Padre', 'Nuevos', 'Antiguos', 'Cerrados'
 ]
 
-const caseList = [
-  {
-    id: "101",
-    codigo: "Caso #101",
-    estudiante: "J. Pérez", // Privacy: Minimized last name
-    grado: "5°",
-    sede: "Santa Mónica JM",
-    tipo: "Caso nuevo",
-    motivo: "Convivencia escolar",
-    estado: "Activo",
-    riesgo: "Medio",
-    fechaRemision: "20/04/2026",
-    docenteRemitente: "Docente titular",
-    ultimoSeguimiento: "25/04/2026",
-    alertas: ["Falta seguimiento con padre de familia"]
-  },
-  {
-    id: "102",
-    codigo: "Caso #102",
-    estudiante: "M. Gómez",
-    grado: "3°",
-    sede: "Villa Flor JM",
-    tipo: "Caso antiguo",
-    motivo: "Riesgo psicosocial",
-    estado: "En seguimiento",
-    riesgo: "Alto",
-    fechaRemision: "15/03/2026",
-    docenteRemitente: "Orientación",
-    ultimoSeguimiento: "28/04/2026",
-    alertas: ["Revisión prioritaria"]
-  }
-]
-
 // --- Components ---
 
 export default function CasosDashboard({ onNavigate, initialCaseId }) {
@@ -112,8 +79,8 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
     return cases.filter(c => {
       // Search Term Filter
       const matchesSearch = !searchTerm ||
-        c.estudiante.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        c.codigo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        c.estudiante?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        c.codigo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         c.identificacion?.toString().includes(searchTerm);
 
       // Advanced Filters
@@ -268,8 +235,8 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
       return;
     }
 
-    // Validar duplicidad si es nuevo Y se ingresó algo
-    if (!editingCase && identificacion && cases.some(c => c.identificacion === identificacion)) {
+    // Validar duplicidad (para creación y edición, excluyendo el caso actual)
+    if (identificacion && cases.some(c => c.identificacion === identificacion && c.id !== editingCase?.id)) {
       alert("Ya existe un caso registrado para este número de identificación.");
       return;
     }
@@ -310,12 +277,13 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
     const found = cases.find(c =>
       c.identificacion === searchQuery ||
       c.id === searchQuery ||
-      c.codigo?.toLowerCase().includes(searchQuery.toLowerCase())
+      c.codigo?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.estudiante?.toLowerCase().includes(searchQuery.toLowerCase())
     )
     if (found) {
       setFoundCase(found)
     } else {
-      alert("No se encontró ningún caso con esa identificación o código.")
+      alert("No se encontró ningún caso con esa identificación, código o nombre.")
     }
   }
 
@@ -403,12 +371,7 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
                 >
                   <TrendingUp size={16} className="text-orange-500" /> Priorizar Caso
                 </button>
-                <button
-                  onClick={() => handleUpdateCaseStatus(c.id, { estado: 'En seguimiento' })}
-                  className="w-full px-4 py-2.5 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-3"
-                >
-                  <Clock size={16} className="text-blue-500" /> Mover a Seguimiento
-                </button>
+
                 <button
                   onClick={() => {
                     if (confirm('¿Cerrar este caso definitivamente?')) {
@@ -457,13 +420,19 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
             <span className="text-slate-400 block text-[10px] uppercase font-bold">Tipo</span>
             <span className="font-medium text-slate-700">{c.tipoCaso}</span>
           </div>
-          <div>
-            <span className="text-slate-400 block text-[10px] uppercase font-bold">Último Seg.</span>
-            <span className="font-medium text-slate-700 flex items-center gap-1"><Calendar size={12} /> {c.seguimientos && c.seguimientos.length > 0 ? c.seguimientos[c.seguimientos.length - 1].fecha : 'N/A'}</span>
-          </div>
-          <div>
-            <span className="text-slate-400 block text-[10px] uppercase font-bold">Remite</span>
-            <span className="font-medium text-slate-700">{c.docenteRemitente}</span>
+          <div className="col-span-2 pt-2 border-t border-slate-50 mt-1">
+            <span className="text-slate-400 block text-[10px] uppercase font-bold mb-1.5">Registros Relacionados</span>
+            <div className="flex flex-wrap gap-2">
+              <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-1 rounded-md border border-blue-100">
+                {c.seguimientos?.filter(s => !s.tipoSeguimiento?.includes('Cita') && !s.tipoSeguimiento?.includes('Ruta')).length || 0} Seguimientos
+              </span>
+              <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-1 rounded-md border border-purple-100">
+                {c.seguimientos?.filter(s => s.tipoSeguimiento?.includes('Cita')).length || 0} Citas
+              </span>
+              <span className="text-[10px] font-bold text-red-700 bg-red-50 px-2 py-1 rounded-md border border-red-100">
+                {c.rutaActivada ? (Array.isArray(c.rutaActivada) ? c.rutaActivada.length : 1) : 0} Rutas
+              </span>
+            </div>
           </div>
         </div>
 
@@ -545,32 +514,7 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
           </button>
         </section>
 
-        {/* 9. Alertas de seguimiento */}
-        <section>
-          <h2 className="text-base font-bold text-slate-800 mb-3 flex items-center gap-2">
-            <AlertTriangle size={18} className="text-orange-500" /> Alertas de seguimiento
-          </h2>
-          <div className="flex flex-col gap-2.5">
-            {dynamicAlerts.map(alert => (
-              <button
-                key={alert.id}
-                onClick={() => setSelectedAlert(alert)}
-                className={`p-3 rounded-xl border flex gap-3 items-start text-left hover:shadow-md transition-all active:scale-[0.98] ${alert.type === 'danger' ? 'bg-red-50 border-red-100 text-red-800' :
-                  alert.type === 'warning' ? 'bg-orange-50 border-orange-100 text-orange-800' :
-                    'bg-blue-50 border-blue-100 text-blue-800'
-                  }`}
-              >
-                <div className="mt-0.5 shrink-0">
-                  {alert.type === 'danger' ? <AlertTriangle size={16} className="text-red-500" /> :
-                    alert.type === 'warning' ? <AlertTriangle size={16} className="text-orange-500" /> :
-                      <Activity size={16} className="text-blue-500" />}
-                </div>
-                <p className="text-sm font-medium leading-tight flex-1">{alert.text}</p>
-                <ChevronDown size={14} className="-rotate-90 text-slate-400 mt-1" />
-              </button>
-            ))}
-          </div>
-        </section>
+
 
         {/* 3. Resumen estadístico principal */}
         <section>
@@ -935,7 +879,7 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
                   </div>
                   <h3 className="font-bold text-slate-800">Buscar estudiante</h3>
                   <p className="text-xs text-slate-500 max-w-xs mx-auto mb-4">
-                    Ingresa el número de identificación o el código del caso para continuar con el seguimiento.
+                    Ingresa el número de identificación, el código del caso o el nombre del estudiante para continuar con el seguimiento.
                   </p>
                   <form onSubmit={handleSearchCase} className="flex gap-2">
                     <input
@@ -943,7 +887,7 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
                       type="text"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="No. Identificación o Código"
+                      placeholder="No. Identificación, Código o Nombre"
                       className="flex-1 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-purple-500 outline-none transition-all"
                     />
                     <button type="submit" className="bg-purple-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-purple-700 transition-colors">Buscar</button>
@@ -1035,7 +979,7 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
                   <div key={c.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 hover:border-blue-200 transition-colors">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-blue-600 border border-slate-100 font-bold text-xs shadow-sm">
-                        {c.estudiante.split(' ').map(n => n[0]).join('')}
+                        {c.estudiante?.split(' ').filter(Boolean).map(n => n[0]).join('') || '?'}
                       </div>
                       <div>
                         <h4 className="text-sm font-bold text-slate-800">{c.estudiante}</h4>
@@ -1091,7 +1035,7 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
                     <div key={c.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 hover:border-blue-200 transition-colors">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-blue-600 border border-slate-100 font-bold text-xs shadow-sm">
-                          {c.estudiante.split(' ').map(n => n[0]).join('')}
+                          {c.estudiante?.split(' ').filter(Boolean).map(n => n[0]).join('') || '?'}
                         </div>
                         <div>
                           <h4 className="text-sm font-bold text-slate-800">{c.estudiante}</h4>
@@ -1142,7 +1086,7 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
                   <div key={c.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 hover:border-blue-200 transition-colors">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-blue-600 border border-slate-100 font-bold text-xs shadow-sm">
-                        {c.estudiante.split(' ').map(n => n[0]).join('')}
+                        {c.estudiante?.split(' ').filter(Boolean).map(n => n[0]).join('') || '?'}
                       </div>
                       <div>
                         <h4 className="text-sm font-bold text-slate-800">{c.estudiante}</h4>
@@ -1174,11 +1118,6 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
           </div>
         </div>
       )}
-      <style dangerouslySetInnerHTML={{
-        __html: `
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-      `}} />
     </div>
   )
 }

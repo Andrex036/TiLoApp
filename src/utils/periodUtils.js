@@ -5,8 +5,8 @@
  */
 
 export const ACADEMIC_PERIODS = [
-  { id: 1, name: '1er Periodo', start: '02-02', end: '04-24', color: 'bg-blue-400/30' },
-  { id: 2, name: '2do Periodo', start: '04-27', end: '08-14', color: 'bg-green-400/30' },
+  { id: 1, name: '1er Periodo', start: '02-02', end: '04-26', color: 'bg-blue-400/30' },
+  { id: 2, name: '2do Periodo', start: '04-27', end: '08-16', color: 'bg-green-400/30' },
   { id: 3, name: '3er Periodo', start: '08-17', end: '11-30', color: 'bg-orange-400/30' },
   { id: 0, name: 'Receso Académico', start: '12-01', end: '02-01', color: 'bg-slate-400/30' }
 ];

@@ -17,8 +17,10 @@ export const exportReportToCSV = (data, fileName = "reporte_tilo.csv") => {
   const rows = data.map(obj => {
     return headers.map(header => {
       let value = obj[header] === null || obj[header] === undefined ? "" : obj[header];
-      // Si es un número, dejarlo tal cual, si es texto, limpiar comillas
-      return `"${String(value).replace(/"/g, '""')}"`;
+      let str = String(value).replace(/"/g, '""');
+      // Prevenir inyección de fórmulas en Excel
+      if (/^[=+\-@\t\r]/.test(str)) str = `'${str}`;
+      return `"${str}"`;
     }).join(",");
   });
 

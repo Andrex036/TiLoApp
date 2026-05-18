@@ -6,14 +6,17 @@ export const useAlerts = () => {
   const [alerts, setAlerts] = useState([]);
 
   useEffect(() => {
-    alertService.initAlerts();
+    const unsubscribeInit = alertService.initAlerts();
     setAlerts(alertService.getAlerts());
 
     const unsubscribe = subscribe('tilo_alerts', (newData) => {
       if (newData) setAlerts(newData);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeInit();
+      unsubscribe();
+    };
   }, []);
 
   const markAsAttended = (id) => alertService.markAsAttended(id);

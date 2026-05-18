@@ -73,6 +73,12 @@ export default function CasoDetalle({ caseId, onBack }) {
   const handleAddCita = (e) => {
     e.preventDefault()
     const formData = new FormData(e.target)
+    const horaInicio = formData.get('horaInicio')
+    const horaFin = formData.get('horaFin')
+    if (horaFin <= horaInicio) {
+      alert('La hora de fin debe ser posterior a la hora de inicio.')
+      return
+    }
     createActivity({
       titulo: `Cita: ${caseData.estudiante}`,
       fecha: formData.get('fecha'),
@@ -85,6 +91,15 @@ export default function CasoDetalle({ caseId, onBack }) {
       prioridad: caseData.nivelRiesgo === 'Alto' || caseData.nivelRiesgo === 'Prioritario' ? 'Alta' : 'Media',
       color: 'blue'
     })
+    
+    // Add tracking record for the Cita
+    addSeguimiento(caseId, {
+      fecha: new Date().toISOString().split('T')[0],
+      tipoSeguimiento: `Cita: ${formData.get('tipoCita')}`,
+      descripcion: `Agendada para: ${formData.get('fecha')} de ${formData.get('horaInicio')} a ${formData.get('horaFin')}\nDetalles: ${formData.get('descripcion') || 'N/A'}`,
+      responsable: 'Orientación Escolar'
+    })
+
     setShowCitaModal(false)
     alert("Cita agendada exitosamente. Podrás verla en el módulo de Actividades.")
   }
@@ -248,7 +263,7 @@ export default function CasoDetalle({ caseId, onBack }) {
             onClick={() => setActiveTab('seguimientos')}
             className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'seguimientos' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
           >
-            Seguimientos ({caseData.seguimientos?.length || 0})
+            Seguimientos ({caseData.seguimientos?.filter(s => !s.eliminado).length || 0})
           </button>
           <button 
             onClick={() => setActiveTab('info')}
@@ -458,7 +473,7 @@ export default function CasoDetalle({ caseId, onBack }) {
               <form onSubmit={handleAddCita} className="space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">Fecha *</label>
-                  <input required name="fecha" type="date" defaultValue={new Date().toISOString().split('T')[0]} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+                  <input required name="fecha" type="date" defaultValue={new Date().toISOString().split('T')[0]} min={new Date().toISOString().split('T')[0]} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
