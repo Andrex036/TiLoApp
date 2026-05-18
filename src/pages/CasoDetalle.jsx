@@ -372,9 +372,11 @@ export default function CasoDetalle({ caseId, onBack }) {
                             <div className="flex items-center gap-2">
                               <span className="text-xs text-slate-500 font-medium">{seg.fecha}</span>
                               <div className="flex gap-1 ml-2">
-                                <button onClick={() => handleEditSeguimiento(seg)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Editar">
-                                  <Edit2 size={14} />
-                                </button>
+                                {!seg.esCita && !seg.esCitaResultado && (
+                                  <button onClick={() => handleEditSeguimiento(seg)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Editar">
+                                    <Edit2 size={14} />
+                                  </button>
+                                )}
                                 <button onClick={() => handleDeleteSeguimiento(seg.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Eliminar">
                                   <X size={14} />
                                 </button>
@@ -385,8 +387,9 @@ export default function CasoDetalle({ caseId, onBack }) {
                           <div className="relative">
                             <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{seg.descripcion}</p>
                           </div>
-                          {seg.esCita && !seg.citaConfirmada && (
+                          {seg.esCita && !seg.esCitaResultado && !seg.citaConfirmada && (
                             <button
+                              type="button"
                               onClick={() => { setCitaParaConfirmar(seg); setShowConfirmCitaModal(true) }}
                               className="mt-3 w-full flex items-center justify-center gap-2 py-2 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-xl border border-blue-100 transition-colors"
                             >
