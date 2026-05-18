@@ -12,19 +12,21 @@ export default function CasoDetalle({ caseId, onBack }) {
   const [showSeguimientoModal, setShowSeguimientoModal] = useState(false)
   const [showCitaModal, setShowCitaModal] = useState(false)
   const [showRutaModal, setShowRutaModal] = useState(false)
+  const [showConfirmCitaModal, setShowConfirmCitaModal] = useState(false)
+  const [citaParaConfirmar, setCitaParaConfirmar] = useState(null)
   const [editingSeguimiento, setEditingSeguimiento] = useState(null)
   const [showConfigMenu, setShowConfigMenu] = useState(false)
 
   const caseData = cases.find(c => c.id === caseId)
 
   useEffect(() => {
-    if (showSeguimientoModal || showCitaModal || showRutaModal) {
+    if (showSeguimientoModal || showCitaModal || showRutaModal || showConfirmCitaModal) {
       document.body.classList.add('no-scroll');
     } else {
       document.body.classList.remove('no-scroll');
     }
     return () => document.body.classList.remove('no-scroll');
-  }, [showSeguimientoModal, showCitaModal, showRutaModal]);
+  }, [showSeguimientoModal, showCitaModal, showRutaModal, showConfirmCitaModal]);
 
   if (!caseData) {
     return (
@@ -106,6 +108,35 @@ export default function CasoDetalle({ caseId, onBack }) {
 
     setShowCitaModal(false)
     alert("Cita agendada exitosamente. Podrás verla en el módulo de Actividades.")
+  }
+
+  const handleConfirmarCita = (e) => {
+    e.preventDefault()
+    const formData = new FormData(e.target)
+    const asistio = formData.get('asistio') === 'si'
+    const trajoSoporte = formData.get('trajoSoporte') === 'si'
+    const observaciones = formData.get('observaciones')
+
+    const lineas = [
+      `Asistió: ${asistio ? 'Sí' : 'No'}`,
+      citaParaConfirmar.requiereSoporte ? `Trajo soporte: ${trajoSoporte ? 'Sí' : 'No'}` : null,
+      observaciones ? `Observaciones: ${observaciones}` : null
+    ].filter(Boolean).join('\n')
+
+    addSeguimiento(caseId, {
+      fecha: new Date().toISOString().split('T')[0],
+      tipoSeguimiento: 'Resultado de cita',
+      descripcion: lineas,
+      responsable: 'Orientación Escolar',
+      esCitaResultado: true,
+      asistio,
+      trajoSoporte: citaParaConfirmar.requiereSoporte ? trajoSoporte : null
+    })
+
+    updateSeguimiento(caseId, citaParaConfirmar.id, { citaConfirmada: true })
+
+    setShowConfirmCitaModal(false)
+    setCitaParaConfirmar(null)
   }
 
   const handleAddRuta = (e) => {
