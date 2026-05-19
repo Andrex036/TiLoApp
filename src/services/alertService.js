@@ -119,23 +119,70 @@ export const alertService = {
           });
         }
 
-        // 3 missed citations
-        const missed = c.citaciones ? c.citaciones.filter(cit => cit.estado === 'No asistió').length : 0;
-        if (missed >= 3) {
-          alertService.createAlert({
-            tipo: 'Citación',
-            titulo: 'Tres citaciones incumplidas',
-            descripcion: `El ${c.codigo} acumula tres citaciones incumplidas.`,
-            prioridad: 'Prioritaria',
-            estado: 'Activa',
-            fecha: today,
-            sede: c.sede,
-            caseId: c.id,
-            codigoCaso: c.codigo,
-            estudiante: c.estudiante,
-            accionSugerida: 'Revisar historial',
-            rutaDestino: 'casos'
-          });
+        // Inasistencias a citaciones por parte de padres registradas en los seguimientos del caso
+        const seguimientosCitasPadres = (c.seguimientos || []).filter(seg => 
+          seg.esCita === true && 
+          (seg.tipoSeguimiento === 'Cita: Reunión con padre de familia' || seg.tipoSeguimiento === 'Cita: Reunión acudiente') &&
+          seg.citaResultadoId
+        );
+
+        const missedParentActs = seguimientosCitasPadres.filter(segCita => {
+          const resultado = (c.seguimientos || []).find(s => s.id === segCita.citaResultadoId);
+          // Verificar si el resultado indica explícitamente que NO asistió (asistio === false)
+          return resultado && resultado.asistio === false && !resultado.eliminado;
+        });
+        
+        const missedCount = missedParentActs.length;
+
+        // (Se eliminó la alerta individual por cada inasistencia a petición del usuario,
+        // ya que la acción inmediata es volver a citar, por lo que no requieren una alerta por separado.
+        // Solo se mantiene la alerta prioritaria al acumular 3 inasistencias).
+
+        // 2. Alerta prioritaria ICBF a las 3 inasistencias y registro en bitácora
+        const isIcbfActivated = c.rutaActivada && (Array.isArray(c.rutaActivada) ? c.rutaActivada.includes('ICBF') : c.rutaActivada === 'ICBF');
+
+        if (missedCount >= 3) {
+          if (!isIcbfActivated) {
+            alertService.createAlert({
+              tipo: 'Citación',
+              titulo: 'Necesidad de remisión a ICBF',
+              descripcion: `El ${c.codigo} acumula ${missedCount} inasistencias de padres de familia. Se requiere remisión prioritaria a ICBF.`,
+              prioridad: 'Prioritaria',
+              estado: 'Activa',
+              fecha: today,
+              sede: c.sede,
+              caseId: c.id,
+              codigoCaso: c.codigo,
+              estudiante: c.estudiante,
+              accionSugerida: 'Iniciar ruta ICBF',
+              rutaDestino: 'casos'
+            });
+
+            // Inyectar seguimiento en la bitácora del caso si no existe
+            const hasIcbfSeguimiento = c.seguimientos?.some(seg => 
+              seg.descripcion?.includes('remisión a ICBF') && seg.eliminado !== true
+            );
+
+            if (!hasIcbfSeguimiento) {
+              caseService.addSeguimiento(c.id, {
+                fecha: today,
+                tipoSeguimiento: 'Otro',
+                descripcion: `[ALERTA AUTOMÁTICA] Se han registrado ${missedCount} inasistencias por parte de los padres de familia a citaciones programadas. Se genera reporte de necesidad de remisión a ICBF.\n\nAcuerdos: Iniciar trámite de remisión a ICBF según protocolo interno.`,
+                responsable: 'Sistema (Automático)'
+              });
+            }
+          } else {
+            // Si ya se activó la ruta con ICBF, buscar la alerta prioritaria activa y marcarla como Atendida
+            const alerts = alertService.getAlerts();
+            const existingAlert = alerts.find(a => 
+              a.caseId === c.id && 
+              a.titulo === 'Necesidad de remisión a ICBF' && 
+              a.estado !== 'Atendida'
+            );
+            if (existingAlert) {
+              alertService.markAsAttended(existingAlert.id);
+            }
+          }
         }
 
         // Logic for mandatory follow-ups (Student, Teacher, Parent) per period
@@ -195,8 +242,7 @@ export const alertService = {
               const existingAlert = alerts.find(a => 
                 a.caseId === c.id && 
                 a.tipo === 'Seguimiento' && 
-                a.periodoId === pId && 
-                a.tipoFaltante === type.key &&
+                a.titulo === `Seguimiento pendiente: ${type.label}` &&
                 a.estado !== 'Atendida'
               );
               

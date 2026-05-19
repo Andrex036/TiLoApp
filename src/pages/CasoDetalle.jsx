@@ -4,7 +4,7 @@ import { useCases } from '../hooks/useCases'
 import { useActivities } from '../hooks/useActivities'
 import { useAlerts } from '../hooks/useAlerts'
 
-export default function CasoDetalle({ caseId, onBack }) {
+export default function CasoDetalle({ caseId, onBack, onEdit }) {
   const { cases, addSeguimiento, updateCase, updateSeguimiento, deleteSeguimiento, closeCase } = useCases()
   const { createActivity } = useActivities()
   const { alerts } = useAlerts()
@@ -177,9 +177,9 @@ export default function CasoDetalle({ caseId, onBack }) {
   }
 
   return (
-    <div className="w-full bg-slate-50 h-full flex flex-col relative overflow-hidden">
+    <div className="w-full bg-slate-50 flex flex-col relative">
       {/* Encabezado */}
-      <header className="bg-white px-5 py-4 border-b border-slate-200 sticky top-0 z-10 flex items-center gap-4">
+      <header className="bg-white px-5 py-4 border-b border-slate-200 sticky top-0 z-20 flex items-center gap-4 shadow-sm">
         <button onClick={onBack} className="p-2 -ml-2 rounded-full hover:bg-slate-100 text-slate-600 transition-colors">
           <ArrowLeft size={22} />
         </button>
@@ -216,10 +216,13 @@ export default function CasoDetalle({ caseId, onBack }) {
                   <TrendingUp size={18} className="text-orange-500" /> Priorizar Caso
                 </button>
                 <button 
-                  onClick={() => handleUpdateStatus({ estado: 'En seguimiento' })}
+                  onClick={() => {
+                    setShowConfigMenu(false);
+                    if (onEdit) onEdit(caseData);
+                  }}
                   className="w-full px-4 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-3"
                 >
-                  <Clock size={18} className="text-blue-500" /> Mover a Seguimiento
+                  <FileText size={18} className="text-blue-500" /> Editar Información
                 </button>
                 <button 
                   onClick={() => {
@@ -237,7 +240,7 @@ export default function CasoDetalle({ caseId, onBack }) {
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto px-5 py-6 pb-20 space-y-6 max-w-4xl mx-auto w-full">
+      <div className="flex-1 px-5 py-6 space-y-6 max-w-4xl mx-auto w-full">
         {/* Info rápida */}
         <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm grid grid-cols-2 gap-4">
           <div className="flex items-start gap-3">
@@ -458,7 +461,10 @@ export default function CasoDetalle({ caseId, onBack }) {
       </div>
 
       {/* Floating Action Buttons Area */}
-      <div className="bg-white border-t border-slate-200 shadow-[0_-4px_15px_rgba(0,0,0,0.05)] p-4 flex gap-2 z-20 shrink-0">
+      <div 
+        className="sticky bg-white border-t border-slate-200 shadow-[0_-10px_20px_rgba(0,0,0,0.05)] p-4 flex gap-2 z-20 w-full"
+        style={{ bottom: 'calc(env(safe-area-inset-bottom) + 74px)' }}
+      >
         <button 
           onClick={() => setShowSeguimientoModal(true)}
           className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] sm:text-xs py-2.5 rounded-xl shadow-sm flex flex-col justify-center items-center gap-1 transition-colors"

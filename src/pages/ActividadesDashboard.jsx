@@ -82,7 +82,7 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
   // --- Dynamic Stats Calculation ---
   const dynamicStats = useMemo(() => {
     const today = new Date().toISOString().split('T')[0];
-    
+
     // Simple week calculation for summary
     const now = new Date();
     const dayOfWeek = now.getDay();
@@ -120,11 +120,11 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
     if (overdue.length > 0) {
       alerts.push({ id: 'a3', text: `Tienes ${overdue.length} actividades vencidas sin completar.`, color: 'orange' });
     }
-    
+
     if (alerts.length === 0) {
       alerts.push({ id: 'a4', text: 'No tienes alertas críticas pendientes.', color: 'slate' });
     }
-    
+
     alerts.push({ id: 'a5', text: 'Recuerda registrar observaciones al finalizar cada actividad.', color: 'slate' });
     return alerts;
   }, [activities]);
@@ -257,8 +257,8 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
             </div>
 
             <div className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 border ${act.prioridad === 'Prioritaria' ? 'bg-red-50 border-red-100 text-red-600' :
-                act.prioridad === 'Alta' ? 'bg-orange-50 border-orange-100 text-orange-600' :
-                  'bg-blue-50 border-blue-100 text-blue-600'
+              act.prioridad === 'Alta' ? 'bg-orange-50 border-orange-100 text-orange-600' :
+                'bg-blue-50 border-blue-100 text-blue-600'
               }`}>
               <AlertTriangle size={12} />
               <span className="text-[10px] font-bold">Prioridad {act.prioridad}</span>
@@ -369,7 +369,7 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
     e.preventDefault();
     const formData = new FormData(e.target);
     const recurrenceId = isRecurring ? `rec-${Date.now()}` : null;
-    
+
     const baseActivity = {
       titulo: formData.get('titulo'),
       sede: formData.get('sede'),
@@ -392,7 +392,7 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
       // Recurrence logic
       const startDate = new Date(formData.get('fecha'));
       const instances = [];
-      
+
       // Week days mapping (0 = Sunday, 1 = Monday, etc.)
       const dayMap = { 'L': 1, 'M': 2, 'Mi': 3, 'J': 4, 'V': 5 };
       const selectedDayNums = selectedDays.map(d => dayMap[d]);
@@ -403,7 +403,7 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
           // Calculate target date for this week and day
           const diff = dayNum - startDate.getDay();
           current.setDate(startDate.getDate() + (w * 7) + diff);
-          
+
           // Only if it's not in the past relative to the start date (optional check)
           if (current >= startDate || w > 0) {
             const dateStr = current.toISOString().split('T')[0];
@@ -458,7 +458,7 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
 
       <div className="px-4 py-6 space-y-8 max-w-5xl mx-auto">
         <section className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <button 
+          <button
             onClick={() => setIsModalOpen(true)}
             className="col-span-1 sm:col-span-1 bg-white p-5 rounded-2xl border border-blue-100 shadow-sm flex items-start gap-4 hover:border-blue-300 hover:shadow-md transition-all group text-left"
           >
@@ -473,7 +473,7 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
             </div>
           </button>
 
-          <button 
+          <button
             onClick={() => scrollTo(calendarRef)}
             className="bg-white p-5 rounded-2xl border border-purple-100 shadow-sm flex items-start gap-4 hover:border-purple-300 hover:shadow-md transition-all group text-left"
           >
@@ -488,7 +488,7 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
             </div>
           </button>
 
-          <button 
+          <button
             onClick={() => { setActiveFilter('Hoy'); scrollTo(listRef); }}
             className="bg-white p-5 rounded-2xl border border-orange-100 shadow-sm flex items-start gap-4 hover:border-orange-300 hover:shadow-md transition-all group text-left"
           >
@@ -687,14 +687,14 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 flex items-center justify-center p-4 animate-[fadeIn_0.2s_ease-out]">
-          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-[slideUp_0.3s_ease-out] flex flex-col max-h-[85vh]">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 flex items-center justify-center p-4 pb-24 animate-[fadeIn_0.2s_ease-out]">
+          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-[slideUp_0.3s_ease-out] flex flex-col max-h-[75vh]">
             {createdActivity ? (
               <div className="p-8 text-center animate-[fadeIn_0.3s_ease-out]">
                 <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-5"><CheckCircle2 size={32} /></div>
                 <h2 className="text-xl font-bold text-slate-800 mb-2">¡Actividad Registrada!</h2>
                 {createdActivity.count ? (
-                   <p className="text-sm text-slate-500 mb-8 leading-relaxed">Se han programado <strong>{createdActivity.count}</strong> instancias de la actividad <strong>{createdActivity.titulo}</strong>.</p>
+                  <p className="text-sm text-slate-500 mb-8 leading-relaxed">Se han programado <strong>{createdActivity.count}</strong> instancias de la actividad <strong>{createdActivity.titulo}</strong>.</p>
                 ) : (
                   <p className="text-sm text-slate-500 mb-8 leading-relaxed">La actividad <strong>{createdActivity.titulo}</strong> ha sido programada para el <strong>{createdActivity.fecha}</strong> a las <strong>{createdActivity.horaInicio}</strong>.</p>
                 )}
@@ -802,9 +802,9 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
                       <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3">
                         <div className="flex items-center justify-between">
                           <label className="text-xs font-bold text-slate-700 flex items-center gap-2 cursor-pointer">
-                            <input 
-                              type="checkbox" 
-                              checked={isRecurring} 
+                            <input
+                              type="checkbox"
+                              checked={isRecurring}
                               onChange={(e) => setIsRecurring(e.target.checked)}
                               className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                             />
@@ -817,11 +817,11 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
                           <div className="space-y-3">
                             <div>
                               <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2">Repetir durante (Semanas)</label>
-                              <input 
-                                type="number" 
-                                min="1" 
-                                max="12" 
-                                value={repeatWeeks} 
+                              <input
+                                type="number"
+                                min="1"
+                                max="12"
+                                value={repeatWeeks}
                                 onChange={(e) => setRepeatWeeks(parseInt(e.target.value))}
                                 className="w-20 border border-slate-200 rounded-lg px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                               />

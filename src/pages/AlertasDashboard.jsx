@@ -23,7 +23,7 @@ export default function AlertasDashboard({ onNavigate }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('Todas');
   const [sedeFilter, setSedeFilter] = useState('Todas');
-  const [statusFilter, setStatusFilter] = useState('Todos');
+  const [statusFilter, setStatusFilter] = useState('Activas y Pendientes');
   
   // Calculate dynamic summary based on local state (to reflect "Atendida" changes)
   const activeAlerts = alerts.filter(a => a.estado === 'Activa' || a.estado === 'Pendiente' || a.estado === 'Vencida' || a.estado === 'Programada');
@@ -45,7 +45,13 @@ export default function AlertasDashboard({ onNavigate }) {
         a.descripcion.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesPriority = priorityFilter === 'Todas' || a.prioridad === priorityFilter;
       const matchesSede = sedeFilter === 'Todas' || a.sede === sedeFilter;
-      const matchesStatus = statusFilter === 'Todos' || a.estado === statusFilter;
+      
+      let matchesStatus = true;
+      if (statusFilter === 'Activas y Pendientes') {
+        matchesStatus = a.estado !== 'Atendida';
+      } else if (statusFilter !== 'Todos') {
+        matchesStatus = a.estado === statusFilter;
+      }
       
       return matchesCategory && matchesSearch && matchesPriority && matchesSede && matchesStatus;
     });
@@ -254,6 +260,7 @@ export default function AlertasDashboard({ onNavigate }) {
                 className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl text-[10px] px-3 py-2 text-slate-600 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="Todos">Estado (Todos)</option>
+                <option value="Activas y Pendientes">Activas y Pendientes</option>
                 <option value="Activa">Activa</option>
                 <option value="Atendida">Atendida</option>
                 <option value="Vencida">Vencida</option>
@@ -319,6 +326,11 @@ export default function AlertasDashboard({ onNavigate }) {
                         }}
                       >
                         {alert.codigoCaso}
+                      </span>
+                    )}
+                    {alert.estudiante && (
+                      <span className="bg-slate-100 text-slate-800 font-bold px-2 py-1 rounded-md">
+                        {alert.estudiante}
                       </span>
                     )}
                   </div>

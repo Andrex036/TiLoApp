@@ -446,7 +446,18 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
   ));
 
   if (selectedCaseId) {
-    return <CasoDetalle caseId={selectedCaseId} onBack={() => setSelectedCaseId(null)} />
+    return (
+      <CasoDetalle 
+        caseId={selectedCaseId} 
+        onBack={() => setSelectedCaseId(null)} 
+        onEdit={(caseItem) => {
+          setSelectedCaseId(null);
+          setEditingCase(caseItem);
+          setCaseSource(caseItem.identificacionOrigen || '');
+          setIsModalOpen(true);
+        }}
+      />
+    )
   }
 
   return (
