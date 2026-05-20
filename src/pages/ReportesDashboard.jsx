@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import {
   BarChart2,
   ArrowLeft,
@@ -21,15 +21,13 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { 
-  exportReportToCSV, 
   exportReportToExcel, 
-  exportReportToPDF, 
-  printReport 
+  exportReportToPDF 
 } from '../utils/exportReports';
 import { useCases } from '../hooks/useCases';
 import { useActivities } from '../hooks/useActivities';
 import { useAlerts } from '../hooks/useAlerts';
-import { getCurrentPeriod, getFormattedDate } from '../utils/periodUtils';
+import { getCurrentPeriod, getFormattedDate, getCurrentPeriodDates } from '../utils/periodUtils';
 
 export default function ReportesDashboard({ onNavigate }) {
   const currentPeriod = getCurrentPeriod();
@@ -38,17 +36,20 @@ export default function ReportesDashboard({ onNavigate }) {
   const { alerts } = useAlerts();
 
   const [sedeFilter, setSedeFilter] = useState('Todas las sedes');
-  const [startDate, setStartDate] = useState('2026-04-01');
-  const [endDate, setEndDate] = useState('2026-05-31');
+  const { startDate: initialStart, endDate: initialEnd } = getCurrentPeriodDates();
+  const [startDate, setStartDate] = useState(initialStart);
+  const [endDate, setEndDate] = useState(initialEnd);
   const [categoryFilter, setCategoryFilter] = useState('Todas las categorías');
   const [isSearching, setIsSearching] = useState(false);
 
   // --- Real Data Processing & Filtering ---
   const reportData = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+
     // 1. Filter raw data by Sede and Date
     const filteredCases = cases.filter(c => {
       const matchesSede = sedeFilter === 'Todas las sedes' || c.sede === sedeFilter;
-      const caseDate = c.createdAt ? c.createdAt.split('T')[0] : '2026-04-01';
+      const caseDate = c.createdAt ? c.createdAt.split('T')[0] : today;
       const matchesDate = caseDate >= startDate && caseDate <= endDate;
       return matchesSede && matchesDate;
     });
@@ -61,7 +62,7 @@ export default function ReportesDashboard({ onNavigate }) {
 
     const filteredAlerts = alerts.filter(al => {
       const matchesSede = sedeFilter === 'Todas las sedes' || al.sede === sedeFilter;
-      const alertDate = al.createdAt ? al.createdAt.split('T')[0] : '2026-04-01';
+      const alertDate = al.createdAt ? al.createdAt.split('T')[0] : today;
       const matchesDate = alertDate >= startDate && alertDate <= endDate;
       return matchesSede && matchesDate;
     });
@@ -91,7 +92,7 @@ export default function ReportesDashboard({ onNavigate }) {
       if (genderMap[c.genero] !== undefined) genderMap[c.genero]++;
       else genderMap['Otro']++;
     });
-    const dynamicByGender = Object.entries(genderMap).map(([name, value], idx) => ({
+    const dynamicByGender = Object.entries(genderMap).map(([name, value]) => ({
       name,
       value,
       percentage: totalCases > 0 ? `${((value / totalCases) * 100).toFixed(1)}%` : '0%',
@@ -164,7 +165,15 @@ export default function ReportesDashboard({ onNavigate }) {
     }).filter(row => sedeFilter === 'Todas las sedes' || row.sede === sedeFilter);
 
     // 3. Actividades y Seguimientos Aggregation
-    const allCaseSegs = filteredCases.flatMap(c => (c.seguimientos || []).map(s => ({ ...s, sede: c.sede })))
+    const allCaseSegs = filteredCases.flatMap(c => (c.seguimientos || []).map(s => ({
+      ...s,
+      caseId: c.id,
+      codigoCaso: c.codigo,
+      estudiante: c.estudiante,
+      grado: c.grado,
+      sede: c.sede,
+      nivelRiesgo: c.nivelRiesgo
+    })))
       .filter(s => s.fecha >= startDate && s.fecha <= endDate);
 
     const countSegs = (keyword) => {
@@ -212,14 +221,235 @@ export default function ReportesDashboard({ onNavigate }) {
       },
       actsSummary,
       alertsSummary,
-      table: consolidated
+      table: consolidated,
+      filteredCases,
+      filteredActs,
+      filteredAlerts,
+      caseFollowUps: allCaseSegs
     };
   }, [cases, activities, alerts, sedeFilter, startDate, endDate]);
+
+  const exportPayload = useMemo(() => {
+    const category = categoryFilter;
+
+    const casesRows = reportData.filteredCases.map(c => ({
+      codigo: c.codigo,
+      estudiante: c.estudiante,
+      identificacion: c.identificacion || '',
+      sede: c.sede,
+      grado: c.grado,
+      estado: c.estado,
+      nivelRiesgo: c.nivelRiesgo,
+      tipoCaso: c.tipoCaso,
+      fechaCreacion: c.createdAt ? c.createdAt.split('T')[0] : ''
+    }));
+
+    const activitiesRows = reportData.filteredActs.map(a => ({
+      titulo: a.titulo,
+      tipo: a.tipo,
+      fecha: a.fecha,
+      horaInicio: a.horaInicio,
+      horaFin: a.horaFin,
+      sede: a.sede,
+      estado: a.estado,
+      prioridad: a.prioridad,
+      responsable: a.responsable
+    }));
+
+    const alertsRows = reportData.filteredAlerts.map(a => ({
+      titulo: a.titulo,
+      tipo: a.tipo,
+      prioridad: a.prioridad,
+      estado: a.estado,
+      sede: a.sede,
+      estudiante: a.estudiante || '',
+      codigoCaso: a.codigoCaso || '',
+      fecha: a.fecha || (a.createdAt ? a.createdAt.split('T')[0] : '')
+    }));
+
+    const followUpsRows = reportData.caseFollowUps.map(s => ({
+      fecha: s.fecha,
+      sede: s.sede,
+      codigoCaso: s.codigoCaso,
+      estudiante: s.estudiante,
+      tipoSeguimiento: s.tipoSeguimiento,
+      responsable: s.responsable,
+      eliminado: s.eliminado ? 'Si' : 'No'
+    }));
+
+    const citasRows = [
+      ...reportData.filteredActs
+        .filter(a => /cita|citacion/i.test(a.tipo || ''))
+        .map(a => ({
+          origen: 'Actividad',
+          codigoCaso: a.casoRelacionado || '',
+          estudiante: a.estudianteRelacionado || '',
+          tipo: a.tipo,
+          fecha: a.fecha,
+          estado: a.estado,
+          sede: a.sede
+        })),
+      ...reportData.caseFollowUps
+        .filter(s => s.esCita || s.esCitaResultado || /cita/i.test(s.tipoSeguimiento || ''))
+        .map(s => ({
+          origen: 'Seguimiento',
+          codigoCaso: s.codigoCaso,
+          estudiante: s.estudiante,
+          tipo: s.tipoSeguimiento,
+          fecha: s.fecha,
+          estado: s.esCitaResultado ? (s.asistio ? 'Asistio' : 'No asistio') : (s.citaConfirmada ? 'Confirmada' : 'Pendiente de confirmacion'),
+          sede: s.sede
+        }))
+    ];
+
+    const rutasRows = reportData.filteredCases
+      .filter(c => c.rutaActivada && (Array.isArray(c.rutaActivada) ? c.rutaActivada.length > 0 : true))
+      .map(c => ({
+        codigo: c.codigo,
+        estudiante: c.estudiante,
+        sede: c.sede,
+        rutas: Array.isArray(c.rutaActivada) ? c.rutaActivada.join(' | ') : c.rutaActivada
+      }));
+
+    const closedRows = casesRows.filter(c => c.estado === 'Cerrado');
+    const trackingRows = casesRows.filter(c => c.estado === 'En seguimiento' || c.estado === 'Abierto');
+    const consolidatedRows = reportData.table.map(row => ({
+      sede: row.sede,
+      totalCasos: row.total,
+      rutasSalud: row.salud,
+      rutasICBF: row.icbf,
+      rutasPolicia: row.policia,
+      rutasComisaria: row.comisaria,
+      rutasFiscalia: row.fiscalia,
+      alertas: row.alertas,
+      actividades: row.acts
+    }));
+
+    const byCategory = {
+      'Casos': [{ title: 'Relacion de casos filtrados', rows: casesRows }],
+      'Actividades': [{ title: 'Relacion de actividades filtradas', rows: activitiesRows }],
+      'Alertas': [{ title: 'Relacion de alertas filtradas', rows: alertsRows }],
+      'Seguimientos': [{ title: 'Relacion de seguimientos filtrados', rows: followUpsRows }],
+      'Citaciones': [{ title: 'Relacion de citaciones filtradas', rows: citasRows }],
+      'Activaciones de ruta': [{ title: 'Relacion de activaciones de ruta', rows: rutasRows }],
+      'Casos cerrados': [{ title: 'Relacion de casos cerrados', rows: closedRows }],
+      'Casos en seguimiento': [{ title: 'Relacion de casos en seguimiento', rows: trackingRows }]
+    };
+
+    // Estructura de secciones para PDF institucional
+    const pdfSections = [
+      // 1. Resumen General
+      {
+        title: 'Resumen General',
+        rows: [{
+          'Casos totales': reportData.summary.totalCases,
+          'Casos cerrados': reportData.summary.closedCases,
+          'Casos en seguimiento': reportData.summary.followUpCases,
+          'Alertas activas': reportData.summary.activeAlerts
+        }]
+      },
+      // 2. Casos por motivo de consulta (gráfico)
+      {
+        title: 'Casos por motivo de consulta',
+        rows: reportData.byReason.map(item => ({
+          Motivo: item.name,
+          Casos: item.value,
+          '% del total': item.percentage,
+          color: item.color
+        })),
+        chartData: reportData.byReason
+      },
+      // 3. Casos por género (gráfico)
+      {
+        title: 'Casos por género',
+        rows: reportData.byGender.map(item => ({
+          Género: item.name,
+          Casos: item.value,
+          '% del total': item.percentage,
+          color: item.color
+        })),
+        chartData: reportData.byGender
+      },
+      // 4. Casos por grado
+      {
+        title: 'Casos por grado',
+        rows: reportData.byGrade.map(item => ({
+          Grado: item.grade,
+          Casos: item.cases,
+          '% del total': item.percentage
+        }))
+      },
+      // 5. Número de activaciones de ruta
+      {
+        title: 'Número de activaciones de ruta',
+        rows: [
+          { Ruta: 'Total', Casos: reportData.routes.total.count },
+          { Ruta: 'Salud', Casos: reportData.routes.salud.count },
+          { Ruta: 'ICBF', Casos: reportData.routes.icbf.count },
+          { Ruta: 'Policía', Casos: reportData.routes.policia.count },
+          { Ruta: 'Comisaría', Casos: reportData.routes.comisaria.count },
+          { Ruta: 'Fiscalía', Casos: reportData.routes.fiscalia.count },
+          { Ruta: 'Ambas', Casos: reportData.routes.ambas.count }
+        ]
+      },
+      // 6. Actividades y seguimientos
+      {
+        title: 'Actividades y seguimientos',
+        rows: [
+          { Indicador: 'Actividades realizadas', Valor: reportData.actsSummary.realizadas },
+          { Indicador: 'Actividades pendientes', Valor: reportData.actsSummary.pendientes },
+          { Indicador: 'Citaciones incumplidas', Valor: reportData.actsSummary.citaciones },
+          { Indicador: 'Seguimientos estudiante', Valor: reportData.actsSummary.estudiante },
+          { Indicador: 'Seguimientos familia', Valor: reportData.actsSummary.familia },
+          { Indicador: 'Seguimientos docente', Valor: reportData.actsSummary.docente }
+        ]
+      },
+      // 7. Alertas del período
+      {
+        title: 'Alertas del período',
+        rows: [
+          { Estado: 'Activas', Cantidad: reportData.alertsSummary.activas },
+          { Estado: 'Atendidas', Cantidad: reportData.alertsSummary.atendidas },
+          { Estado: 'Prioritarias', Cantidad: reportData.alertsSummary.prioritarias },
+          { Estado: 'Vencidas', Cantidad: reportData.alertsSummary.vencidas }
+        ]
+      },
+      // 8. Resumen consolidado
+      {
+        title: 'Resumen consolidado',
+        rows: reportData.table.map(row => ({
+          Sede: row.sede,
+          'Total casos': row.total,
+          Salud: row.salud,
+          ICBF: row.icbf,
+          Policía: row.policia,
+          Comisaría: row.comisaria,
+          Fiscalía: row.fiscalia,
+          Alertas: row.alertas,
+          Actividades: row.acts
+        }))
+      }
+    ];
+
+    return {
+      metadata: {
+        Institucion: 'TiLoAPP - Orientacion Escolar',
+        Sede: sedeFilter,
+        'Fecha de inicio': startDate,
+        'Fecha de fin': endDate,
+        Categoria: categoryFilter,
+        'Generado el': new Date().toLocaleString()
+      },
+      sections: pdfSections
+    };
+  }, [reportData, sedeFilter, startDate, endDate, categoryFilter]);
 
   const handleSearch = () => {
     setIsSearching(true);
     setTimeout(() => setIsSearching(false), 600);
   };
+
+  const exportBaseName = `Reporte_TiLo_${sedeFilter}_${categoryFilter}_${startDate}_a_${endDate}`;
 
   const subtitle = sedeFilter === 'Todas las sedes' ? 'Todas las sedes' : `Sede ${sedeFilter}`;
 
@@ -351,17 +581,11 @@ export default function ReportesDashboard({ onNavigate }) {
           
           {/* Botones de exportación */}
           <div className="flex flex-wrap gap-2 pt-3 border-t border-slate-100">
-            <button onClick={() => exportReportToPDF()} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold py-2 px-3 rounded-lg flex items-center gap-1.5 transition-colors shadow-sm">
+            <button onClick={() => exportReportToPDF(exportPayload, `${exportBaseName}.pdf`)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold py-2 px-3 rounded-lg flex items-center gap-1.5 transition-colors shadow-sm">
               <FileText size={14} className="text-red-500"/> Exportar PDF
             </button>
-            <button onClick={() => exportReportToExcel(reportData.table, `Reporte_TiLo_${sedeFilter}_${startDate}_a_${endDate}.xlsx`)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold py-2 px-3 rounded-lg flex items-center gap-1.5 transition-colors shadow-sm">
+            <button onClick={() => exportReportToExcel(exportPayload, `${exportBaseName}.xlsx`)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold py-2 px-3 rounded-lg flex items-center gap-1.5 transition-colors shadow-sm">
               <Download size={14} className="text-green-600"/> Exportar Excel
-            </button>
-            <button onClick={() => exportReportToCSV(reportData.table, `Reporte_TiLo_${sedeFilter}_${startDate}_a_${endDate}.csv`)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold py-2 px-3 rounded-lg flex items-center gap-1.5 transition-colors shadow-sm">
-              <Download size={14} className="text-blue-600"/> Exportar CSV
-            </button>
-            <button onClick={printReport} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold py-2 px-3 rounded-lg flex items-center gap-1.5 transition-colors shadow-sm ml-auto">
-              <Printer size={14} className="text-slate-600"/> Imprimir informe
             </button>
           </div>
         </div>
@@ -500,55 +724,37 @@ export default function ReportesDashboard({ onNavigate }) {
             <h2 className="text-base font-bold text-slate-800">Casos por grado</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="flex items-end gap-2 h-56 border-b border-slate-200 pb-2 px-2 bg-slate-50/30 rounded-xl">
+            <div className="flex flex-col gap-2 h-full py-2 px-2 bg-slate-50/30 rounded-xl border-b border-slate-200">
               {reportData.byGrade.map((item, idx) => {
                 const percentage = (item.cases / (reportData.summary.totalCases || 1)) * 100;
                 return (
-                  <div key={idx} className="flex-1 flex flex-col items-center group h-full justify-end">
-                    <span className={`text-[10px] font-bold mb-1 transition-all ${item.cases > 0 ? 'text-blue-600 scale-110' : 'text-slate-300'}`}>
-                      {item.cases}
-                    </span>
-                    <div className="w-full bg-slate-200/50 rounded-t-lg relative flex flex-col justify-end overflow-hidden h-40">
-                      <div 
-                        className={`w-full rounded-t-lg transition-all duration-700 ease-out shadow-sm ${
-                          item.cases > 0 ? 'bg-gradient-to-t from-blue-600 to-blue-400' : 'bg-slate-200'
-                        }`} 
-                        style={{ height: `${item.cases > 0 ? Math.max(percentage, 5) : 0}%` }}
+                  <div key={idx} className="flex items-center gap-3 w-full">
+                    <span className="w-20 text-xs sm:text-sm font-bold text-slate-700 text-right shrink-0">{item.grade}</span>
+                    <div className="flex-1 h-7 bg-slate-200/60 rounded-lg relative overflow-hidden">
+                      <div
+                        className="h-7 rounded-lg transition-all duration-700 ease-out shadow-sm bg-gradient-to-r from-blue-600 to-blue-400"
+                        style={{ width: `${percentage}%`, minWidth: item.cases > 0 ? '2.5rem' : 0 }}
                       >
-                        {item.cases > 0 && <div className="absolute top-0 left-0 right-0 h-1 bg-white/20"></div>}
+                        {item.cases > 0 && (
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-white font-bold text-xs drop-shadow-sm">
+                            {item.cases}
+                          </span>
+                        )}
                       </div>
                     </div>
-                    <span className="text-[7px] sm:text-[10px] font-bold text-slate-500 mt-2 rotate-45 sm:rotate-0 origin-left sm:origin-center truncate w-full text-center">
-                      {item.grade}
-                    </span>
+                    <span className="w-12 text-xs text-slate-500 text-right font-medium">{item.percentage}</span>
                   </div>
                 );
               })}
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="bg-slate-50 text-xs text-slate-500 uppercase border-b border-slate-200">
-                  <tr>
-                    <th className="px-4 py-2 rounded-tl-xl">Grado</th>
-                    <th className="px-4 py-2">N° de casos</th>
-                    <th className="px-4 py-2 rounded-tr-xl">% del total</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {reportData.byGrade.map((item, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50/50">
-                      <td className="px-4 py-2.5 font-medium text-slate-700">{item.grade}</td>
-                      <td className="px-4 py-2.5 font-bold text-slate-800">{item.cases}</td>
-                      <td className="px-4 py-2.5 text-slate-500">{item.percentage}</td>
-                    </tr>
-                  ))}
-                  <tr className="bg-blue-50/50">
-                    <td className="px-4 py-3 font-bold text-blue-900 rounded-bl-xl">Total</td>
-                    <td className="px-4 py-3 font-black text-blue-900">{reportData.summary.totalCases}</td>
-                    <td className="px-4 py-3 font-bold text-blue-900 rounded-br-xl">100%</td>
-                  </tr>
-                </tbody>
-              </table>
+            <div className="flex flex-col items-center justify-center mt-6">
+              <div className="flex items-center gap-4 bg-blue-50 border border-blue-200 rounded-2xl px-8 py-4 shadow-inner">
+                <span className="text-4xl font-black text-blue-700 drop-shadow-sm">{reportData.summary.totalCases}</span>
+                <div className="flex flex-col items-start">
+                  <span className="text-xs font-bold text-blue-900 uppercase tracking-widest">Total de casos</span>
+                  <span className="text-lg font-bold text-blue-500">100%</span>
+                </div>
+              </div>
             </div>
           </div>
         </section>

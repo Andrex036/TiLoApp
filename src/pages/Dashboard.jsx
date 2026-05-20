@@ -4,14 +4,7 @@ import {
   Clock,
   Check,
   School,
-  AlertTriangle,
-  Search,
-  ChevronDown,
   Calendar,
-  BarChart2,
-  PieChart,
-  ChevronLeft,
-  ChevronRight,
   Bell,
 } from 'lucide-react';
 import TiLoLogo from '../assets/TiLo_Logo_Cara.png';
@@ -31,10 +24,6 @@ export default function HomeDashboard() {
   const casosNuevos = cases.filter(c => c.tipoCaso === 'Nuevo').length;
   const casosAntiguos = cases.filter(c => c.tipoCaso === 'Antiguo').length;
   const casosCerrados = cases.filter(c => c.estado === 'Cerrado').length;
-  const casosAltoRiesgo = cases.filter(c => c.nivelRiesgo === 'Alto' || c.nivelRiesgo === 'Prioritario').length;
-
-  // Calculate sedes with active cases
-  const sedesConCasos = new Set(cases.filter(c => c.estado !== 'Cerrado').map(c => c.sede)).size;
 
   // Generate Sede Cards with all sedes initialized
   const sedesMap = {
@@ -82,10 +71,7 @@ export default function HomeDashboard() {
     { id: 4, icon: Check, count: casosCerrados, title: 'Casos cerrados', subtitle: 'Todas las sedes', color: 'text-slate-600', bg: 'bg-slate-100' },
   ];
 
-  const highlightedCards = [
-    { id: 1, icon: School, count: sedesConCasos, title: 'Sedes con casos', subtitle: 'Activas', color: 'text-orange-500', bg: 'bg-orange-50' },
-    { id: 2, icon: AlertTriangle, count: casosAltoRiesgo, title: 'Casos en alto riesgo', subtitle: 'Todas las sedes', color: 'text-red-600', bg: 'bg-red-50' },
-  ];
+
 
   // Dynamic calculations for Alerts
   const activeAlerts = alerts.filter(a => a.estado === 'Activa' || a.estado === 'Pendiente' || a.estado === 'Vencida' || a.estado === 'Programada').length;
@@ -116,7 +102,7 @@ export default function HomeDashboard() {
           </div>
           <div className="flex flex-col justify-center">
             <h1 className="text-2xl font-black tracking-tight leading-none">TiLo Te Escucha</h1>
-            <p className="text-blue-100 text-sm mt-1 font-medium">Orientación Escolar • 2026</p>
+            <p className="text-blue-100 text-sm mt-1 font-medium">Orientación Escolar • {new Date().getFullYear()}</p>
           </div>
         </div>
         <div className="flex flex-col items-end gap-2">

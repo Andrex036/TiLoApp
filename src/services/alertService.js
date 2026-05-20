@@ -78,6 +78,37 @@ export const alertService = {
     const cases = caseService.getCases() || [];
     const activities = activityService.getActivities() || [];
     const today = new Date().toISOString().split('T')[0];
+
+    // Reconcile existing high-risk alerts when a case is downgraded or closed.
+    const existingAlerts = alertService.getAlerts();
+    const caseById = new Map(cases.map(c => [c.id, c]));
+    let reconciledAlerts = null;
+
+    existingAlerts.forEach((alert, index) => {
+      if (alert.titulo !== 'Caso en alto riesgo' || alert.estado === 'Atendida' || !alert.caseId) {
+        return;
+      }
+
+      const relatedCase = caseById.get(alert.caseId);
+      const stillHighRisk = relatedCase &&
+        relatedCase.estado !== 'Cerrado' &&
+        (relatedCase.nivelRiesgo === 'Alto' || relatedCase.nivelRiesgo === 'Prioritario');
+
+      if (!stillHighRisk) {
+        if (!reconciledAlerts) {
+          reconciledAlerts = [...existingAlerts];
+        }
+        reconciledAlerts[index] = {
+          ...reconciledAlerts[index],
+          estado: 'Atendida',
+          updatedAt: new Date().toISOString()
+        };
+      }
+    });
+
+    if (reconciledAlerts) {
+      saveData(ALERTS_KEY, reconciledAlerts);
+    }
     
     cases.forEach(c => {
       if (c.estado !== 'Cerrado') {

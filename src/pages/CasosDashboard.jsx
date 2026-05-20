@@ -47,6 +47,7 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
   const [isOldCaseModalOpen, setIsOldCaseModalOpen] = useState(false)
   const [editingCase, setEditingCase] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [searchMatches, setSearchMatches] = useState([])
   const [foundCase, setFoundCase] = useState(null)
   const [selectedAlert, setSelectedAlert] = useState(null)
   const [selectedStat, setSelectedStat] = useState(null)
@@ -274,15 +275,23 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
 
   const handleSearchCase = (e) => {
     e.preventDefault()
-    const found = cases.find(c =>
-      c.identificacion === searchQuery ||
-      c.id === searchQuery ||
-      c.codigo?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.estudiante?.toLowerCase().includes(searchQuery.toLowerCase())
+    const normalizedQuery = searchQuery.trim().toLowerCase()
+    if (!normalizedQuery) {
+      setSearchMatches([])
+      return
+    }
+
+    const matches = cases.filter(c =>
+      c.identificacion?.toString() === normalizedQuery ||
+      c.id?.toLowerCase() === normalizedQuery ||
+      c.codigo?.toLowerCase().includes(normalizedQuery) ||
+      c.estudiante?.toLowerCase().includes(normalizedQuery)
     )
-    if (found) {
-      setFoundCase(found)
+
+    if (matches.length > 0) {
+      setSearchMatches(matches)
     } else {
+      setSearchMatches([])
       alert("No se encontró ningún caso con esa identificación, código o nombre.")
     }
   }
@@ -298,6 +307,7 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
       responsable: 'Orientación Escolar'
     })
     setIsOldCaseModalOpen(false)
+    setSearchMatches([])
     setFoundCase(null)
     setSearchQuery('')
     alert("Seguimiento registrado exitosamente.")
@@ -305,6 +315,7 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
 
   const handleCloseOldCaseModal = () => {
     setIsOldCaseModalOpen(false)
+    setSearchMatches([])
     setFoundCase(null)
     setSearchQuery('')
   }
@@ -903,6 +914,27 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
                     />
                     <button type="submit" className="bg-purple-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-purple-700 transition-colors">Buscar</button>
                   </form>
+
+                  {searchMatches.length > 0 && (
+                    <div className="text-left space-y-2 pt-2">
+                      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                        {searchMatches.length} resultado{searchMatches.length > 1 ? 's' : ''}
+                      </p>
+                      <div className="max-h-64 overflow-y-auto space-y-2">
+                        {searchMatches.map(c => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => setFoundCase(c)}
+                            className="w-full text-left p-3 bg-white border border-slate-200 hover:border-purple-300 hover:bg-purple-50/40 rounded-xl transition-colors"
+                          >
+                            <p className="text-sm font-bold text-slate-800">{c.estudiante}</p>
+                            <p className="text-[11px] text-slate-500">{c.codigo} • {c.grado} • {c.sede}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <form onSubmit={handleOldCaseFollowUp} className="p-5 space-y-4">

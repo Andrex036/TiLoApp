@@ -50,6 +50,34 @@ export const getPeriodByDate = (dateParam) => {
 };
 
 /**
+ * Retorna las fechas de inicio y fin del periodo académico actual en formato YYYY-MM-DD
+ */
+export const getCurrentPeriodDates = () => {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentPeriod = getCurrentPeriod();
+
+  let startYear = currentYear;
+  let endYear = currentYear;
+
+  if (currentPeriod.id === 0) {
+    const month = now.getMonth() + 1; // 1-indexed
+    if (month <= 2) {
+      // Si estamos en enero o febrero, el receso comenzó en diciembre del año anterior
+      startYear = currentYear - 1;
+    } else {
+      // Si estamos en diciembre, el receso termina en febrero del año siguiente
+      endYear = currentYear + 1;
+    }
+  }
+
+  return {
+    startDate: `${startYear}-${currentPeriod.start}`,
+    endDate: `${endYear}-${currentPeriod.end}`
+  };
+};
+
+/**
  * Formatea la fecha actual para el encabezado
  */
 export const getFormattedDate = () => {
@@ -59,3 +87,4 @@ export const getFormattedDate = () => {
     year: 'numeric'
   });
 };
+

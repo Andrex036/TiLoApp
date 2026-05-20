@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react'
-import { ArrowLeft, Plus, Calendar as CalendarIcon, FileText, CheckCircle2, AlertTriangle, User, MapPin, Activity, Paperclip, MoreVertical, TrendingUp, XCircle, Clock, Edit2, X } from 'lucide-react'
+import { ArrowLeft, Plus, Calendar as CalendarIcon, FileText, CheckCircle2, AlertTriangle, User, MapPin, Activity, Paperclip, MoreVertical, TrendingUp, XCircle, Edit2, X } from 'lucide-react'
 import { useCases } from '../hooks/useCases'
 import { useActivities } from '../hooks/useActivities'
 import { useAlerts } from '../hooks/useAlerts'
 
 export default function CasoDetalle({ caseId, onBack, onEdit }) {
   const { cases, addSeguimiento, updateCase, updateSeguimiento, deleteSeguimiento, closeCase } = useCases()
-  const { createActivity } = useActivities()
+  const { activities, createActivity, updateActivity, deleteActivity } = useActivities()
   const { alerts } = useAlerts()
   const [activeTab, setActiveTab] = useState('seguimientos') // seguimientos, info
   const [showSeguimientoModal, setShowSeguimientoModal] = useState(false)
@@ -18,6 +18,44 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
   const [showConfigMenu, setShowConfigMenu] = useState(false)
 
   const caseData = cases.find(c => c.id === caseId)
+
+  const getLinkedCitaActivity = (seguimientoId) => {
+    return activities.find(act => act.caseId === caseId && act.citaSeguimientoId === seguimientoId) || null
+  }
+
+  const syncCitaActivity = (seguimiento, { action = 'update', result } = {}) => {
+    const linkedActivity = getLinkedCitaActivity(seguimiento?.id)
+    if (!linkedActivity) return
+
+    if (action === 'delete') {
+      deleteActivity(linkedActivity.id)
+      return
+    }
+
+    if (action === 'restore') {
+      updateActivity(linkedActivity.id, {
+        estado: 'Programada',
+        color: 'blue'
+      })
+      return
+    }
+
+    if (action === 'result') {
+      const nextStatus = result?.asistio ? 'Realizada' : 'No asistió'
+      updateActivity(linkedActivity.id, {
+        estado: nextStatus,
+        color: result?.asistio ? 'green' : 'slate'
+      })
+      return
+    }
+
+    updateActivity(linkedActivity.id, {
+      fecha: seguimiento.fecha,
+      descripcion: seguimiento.descripcion,
+      estado: linkedActivity.estado === 'Cancelada' ? 'Cancelada' : linkedActivity.estado,
+      color: linkedActivity.color
+    })
+  }
 
   useEffect(() => {
     if (showSeguimientoModal || showCitaModal || showRutaModal || showConfirmCitaModal) {
@@ -42,12 +80,23 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
     const formData = new FormData(e.target)
     
     if (editingSeguimiento) {
-      updateSeguimiento(caseId, editingSeguimiento.id, {
+      const updates = {
         fecha: formData.get('fecha'),
         tipoSeguimiento: formData.get('tipoSeguimiento'),
         descripcion: formData.get('descripcion'),
-        hasSoporte: formData.get('hasSoporte') === 'on'
-      })
+      }
+      if (editingSeguimiento.esCita) {
+        updates.requiereSoporte = formData.get('hasSoporte') === 'on'
+      } else {
+        updates.hasSoporte = formData.get('hasSoporte') === 'on'
+      }
+      updateSeguimiento(caseId, editingSeguimiento.id, updates)
+      if (editingSeguimiento.esCita) {
+        syncCitaActivity({
+          ...editingSeguimiento,
+          ...updates
+        })
+      }
       setEditingSeguimiento(null)
     } else {
       addSeguimiento(caseId, {
@@ -63,13 +112,39 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
 
   const handleDeleteSeguimiento = (segId) => {
     if (confirm('¿Estás seguro de eliminar este seguimiento? Quedará un registro de la eliminación.')) {
+      const targetSeg = caseData.seguimientos.find(s => s.id === segId);
+      if (targetSeg?.esCita) {
+        const linkedResult = targetSeg.citaResultadoId
+          ? caseData.seguimientos.find(s => s.id === targetSeg.citaResultadoId)
+          : null
+        if (linkedResult) {
+          deleteSeguimiento(caseId, linkedResult.id)
+        }
+        syncCitaActivity(targetSeg, { action: 'delete' })
+      }
+      if (targetSeg?.esCitaResultado) {
+        const originalCita = caseData.seguimientos.find(s => s.citaResultadoId === segId);
+        if (originalCita) {
+          updateSeguimiento(caseId, originalCita.id, {
+            citaConfirmada: false,
+            citaResultadoId: null
+          });
+          syncCitaActivity(originalCita, { action: 'restore' })
+        }
+      }
       deleteSeguimiento(caseId, segId)
     }
   }
 
   const handleEditSeguimiento = (seg) => {
     setEditingSeguimiento(seg)
-    setShowSeguimientoModal(true)
+    if (seg.esCitaResultado) {
+      const originalCita = caseData.seguimientos.find(s => s.citaResultadoId === seg.id);
+      setCitaParaConfirmar(originalCita || { requiereSoporte: seg.trajoSoporte !== null });
+      setShowConfirmCitaModal(true);
+    } else {
+      setShowSeguimientoModal(true);
+    }
   }
 
   const handleAddCita = (e) => {
@@ -81,6 +156,17 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
       alert('La hora de fin debe ser posterior a la hora de inicio.')
       return
     }
+    const citaSeguimiento = addSeguimiento(caseId, {
+      fecha: new Date().toISOString().split('T')[0],
+      tipoSeguimiento: `Cita: ${formData.get('tipoCita')}`,
+      descripcion: `Agendada para: ${formData.get('fecha')} de ${formData.get('horaInicio')} a ${formData.get('horaFin')}\nDetalles: ${formData.get('descripcion') || 'N/A'}`,
+      responsable: 'Orientación Escolar',
+      esCita: true,
+      requiereSoporte: formData.get('requiereSoporte') === 'on',
+      citaConfirmada: false,
+      citaResultadoId: null
+    })
+
     createActivity({
       titulo: `Cita: ${caseData.estudiante}`,
       fecha: formData.get('fecha'),
@@ -91,19 +177,9 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
       descripcion: formData.get('descripcion'),
       responsable: 'Orientación',
       prioridad: caseData.nivelRiesgo === 'Alto' || caseData.nivelRiesgo === 'Prioritario' ? 'Alta' : 'Media',
-      color: 'blue'
-    })
-    
-    // Add tracking record for the Cita
-    addSeguimiento(caseId, {
-      fecha: new Date().toISOString().split('T')[0],
-      tipoSeguimiento: `Cita: ${formData.get('tipoCita')}`,
-      descripcion: `Agendada para: ${formData.get('fecha')} de ${formData.get('horaInicio')} a ${formData.get('horaFin')}\nDetalles: ${formData.get('descripcion') || 'N/A'}`,
-      responsable: 'Orientación Escolar',
-      esCita: true,
-      requiereSoporte: formData.get('requiereSoporte') === 'on',
-      citaConfirmada: false,
-      citaResultadoId: null
+      color: 'blue',
+      caseId,
+      citaSeguimientoId: citaSeguimiento?.id ?? null
     })
 
     setShowCitaModal(false)
@@ -123,20 +199,39 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
       observaciones ? `Observaciones: ${observaciones}` : null
     ].filter(Boolean).join('\n')
 
-    const resultSeg = addSeguimiento(caseId, {
-      fecha: new Date().toISOString().split('T')[0],
-      tipoSeguimiento: 'Resultado de cita',
-      descripcion: lineas,
-      responsable: 'Orientación Escolar',
-      esCitaResultado: true,
-      asistio,
-      trajoSoporte: citaParaConfirmar.requiereSoporte ? trajoSoporte : null
-    })
+    if (editingSeguimiento) {
+      updateSeguimiento(caseId, editingSeguimiento.id, {
+        descripcion: lineas,
+        observaciones,
+        asistio,
+        trajoSoporte: citaParaConfirmar.requiereSoporte ? trajoSoporte : null
+      })
+      syncCitaActivity(citaParaConfirmar, {
+        action: 'result',
+        result: { asistio }
+      })
+      setEditingSeguimiento(null)
+    } else {
+      const resultSeg = addSeguimiento(caseId, {
+        fecha: new Date().toISOString().split('T')[0],
+        tipoSeguimiento: 'Resultado de cita',
+        descripcion: lineas,
+        observaciones,
+        responsable: 'Orientación Escolar',
+        esCitaResultado: true,
+        asistio,
+        trajoSoporte: citaParaConfirmar.requiereSoporte ? trajoSoporte : null
+      })
 
-    updateSeguimiento(caseId, citaParaConfirmar.id, {
-      citaConfirmada: true,
-      citaResultadoId: resultSeg?.id ?? null
-    })
+      updateSeguimiento(caseId, citaParaConfirmar.id, {
+        citaConfirmada: true,
+        citaResultadoId: resultSeg?.id ?? null
+      })
+      syncCitaActivity(citaParaConfirmar, {
+        action: 'result',
+        result: { asistio }
+      })
+    }
 
     setShowConfirmCitaModal(false)
     setCitaParaConfirmar(null)
@@ -175,6 +270,14 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
     setShowConfigMenu(false)
     alert("Caso actualizado correctamente")
   }
+
+  const getObservacionesVal = (seg) => {
+    if (!seg) return '';
+    if (seg.observaciones !== undefined) return seg.observaciones;
+    const lines = seg.descripcion?.split('\n') || [];
+    const obsLine = lines.find(l => l.startsWith('Observaciones: '));
+    return obsLine ? obsLine.replace('Observaciones: ', '') : '';
+  };
 
   return (
     <div className="w-full bg-slate-50 flex flex-col relative">
@@ -366,7 +469,7 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
                                   <XCircle size={10} /> No se presentó
                                 </span>
                               )}
-                              {seg.editado && !seg.esCita && (
+                              {seg.editado && (
                                 <span className="flex items-center gap-1 text-[10px] font-bold text-orange-700 bg-orange-50 px-2 py-1 rounded-md">
                                   <Edit2 size={10} /> Editado
                                 </span>
@@ -375,16 +478,12 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
                             <div className="flex items-center gap-2">
                               <span className="text-xs text-slate-500 font-medium">{seg.fecha}</span>
                               <div className="flex gap-1 ml-2">
-                                {!seg.esCita && !seg.esCitaResultado && (
-                                  <button onClick={() => handleEditSeguimiento(seg)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Editar">
-                                    <Edit2 size={14} />
-                                  </button>
-                                )}
-                                {!seg.esCita && !seg.esCitaResultado && (
-                                  <button onClick={() => handleDeleteSeguimiento(seg.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Eliminar">
-                                    <X size={14} />
-                                  </button>
-                                )}
+                                <button onClick={() => handleEditSeguimiento(seg)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Editar">
+                                  <Edit2 size={14} />
+                                </button>
+                                <button onClick={() => handleDeleteSeguimiento(seg.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Eliminar">
+                                  <X size={14} />
+                                </button>
                               </div>
                             </div>
                           </div>
@@ -395,7 +494,7 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
                           {seg.esCita && !seg.esCitaResultado && !seg.citaConfirmada && (
                             <button
                               type="button"
-                              onClick={() => { setCitaParaConfirmar(seg); setShowConfirmCitaModal(true) }}
+                              onClick={() => { setEditingSeguimiento(null); setCitaParaConfirmar(seg); setShowConfirmCitaModal(true) }}
                               className="mt-3 w-full flex items-center justify-center gap-2 py-2 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-xl border border-blue-100 transition-colors"
                             >
                               <CheckCircle2 size={14} /> Confirmar asistencia
@@ -502,6 +601,9 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">Tipo *</label>
                   <select required name="tipoSeguimiento" defaultValue={editingSeguimiento?.tipoSeguimiento || 'Estudiante'} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                    {editingSeguimiento && !['Estudiante', 'Padre de familia', 'Docente', 'Externo (Salud/ICBF)'].includes(editingSeguimiento.tipoSeguimiento) && (
+                      <option value={editingSeguimiento.tipoSeguimiento}>{editingSeguimiento.tipoSeguimiento}</option>
+                    )}
                     <option value="Estudiante">Estudiante</option>
                     <option value="Padre de familia">Padre de familia</option>
                     <option value="Docente">Docente</option>
@@ -520,12 +622,16 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
                     <Paperclip size={16} />
                   </div>
                   <div>
-                    <p className="text-xs font-bold text-slate-700">Soporte de atención</p>
-                    <p className="text-[10px] text-slate-500">¿Se entregó documento de soporte?</p>
+                    <p className="text-xs font-bold text-slate-700">
+                      {editingSeguimiento?.esCita ? 'Requiere soporte' : 'Soporte de atención'}
+                    </p>
+                    <p className="text-[10px] text-slate-500">
+                      {editingSeguimiento?.esCita ? '¿El citado debe traer soporte?' : '¿Se entregó documento de soporte?'}
+                    </p>
                   </div>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" name="hasSoporte" defaultChecked={editingSeguimiento?.hasSoporte} className="sr-only peer" />
+                  <input type="checkbox" name="hasSoporte" defaultChecked={editingSeguimiento?.hasSoporte || editingSeguimiento?.requiereSoporte} className="sr-only peer" />
                   <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                 </label>
               </div>
@@ -646,11 +752,11 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
           <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-[slideUp_0.3s_ease-out] flex flex-col max-h-[85vh]">
             <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
               <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                <CheckCircle2 size={20} className="text-blue-600" /> Confirmar asistencia
+                <CheckCircle2 size={20} className="text-blue-600" /> {editingSeguimiento ? 'Editar resultado de cita' : 'Confirmar asistencia'}
               </h2>
               <button
                 type="button"
-                onClick={() => { setShowConfirmCitaModal(false); setCitaParaConfirmar(null) }}
+                onClick={() => { setShowConfirmCitaModal(false); setCitaParaConfirmar(null); setEditingSeguimiento(null); }}
                 className="p-2 hover:bg-white rounded-full text-slate-400 transition-colors"
               >
                 <X size={18} />
@@ -664,7 +770,7 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-2">¿Asistió a la cita? *</label>
-                  <select required name="asistio" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                  <select required name="asistio" defaultValue={editingSeguimiento ? (editingSeguimiento.asistio ? 'si' : 'no') : ''} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                     <option value="">-- Selecciona --</option>
                     <option value="si">Sí asistió</option>
                     <option value="no">No se presentó</option>
@@ -674,7 +780,7 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
                 {citaParaConfirmar.requiereSoporte && (
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-2">¿Trajo soporte? *</label>
-                    <select required name="trajoSoporte" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                    <select required name="trajoSoporte" defaultValue={editingSeguimiento ? (editingSeguimiento.trajoSoporte ? 'si' : 'no') : ''} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                       <option value="">-- Selecciona --</option>
                       <option value="si">Sí trajo soporte</option>
                       <option value="no">No trajo soporte</option>
@@ -687,6 +793,7 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
                   <textarea
                     name="observaciones"
                     rows="3"
+                    defaultValue={editingSeguimiento ? getObservacionesVal(editingSeguimiento) : ''}
                     placeholder="Notas adicionales sobre la cita..."
                     className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500"
                   ></textarea>
@@ -695,7 +802,7 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
                 <div className="flex gap-3 pt-2">
                   <button
                     type="button"
-                    onClick={() => { setShowConfirmCitaModal(false); setCitaParaConfirmar(null) }}
+                    onClick={() => { setShowConfirmCitaModal(false); setCitaParaConfirmar(null); setEditingSeguimiento(null); }}
                     className="flex-1 py-3 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
                   >
                     Cancelar
@@ -704,7 +811,7 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
                     type="submit"
                     className="flex-1 py-3 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors"
                   >
-                    Registrar
+                    {editingSeguimiento ? 'Guardar' : 'Registrar'}
                   </button>
                 </div>
               </form>
