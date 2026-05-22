@@ -20,6 +20,10 @@ import {
 import { useActivities } from '../hooks/useActivities';
 import { getCurrentPeriod, getFormattedDate } from '../utils/periodUtils';
 
+// Devuelve fecha local en formato YYYY-MM-DD, evitando el desfase UTC
+const getLocalDateStr = (date = new Date()) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
 
 // --- Constants ---
 const quickFilters = ['Todas', 'Hoy', 'Mañana', 'Esta semana', 'Vencidas', 'Prioritarias', 'Completadas'];
@@ -29,7 +33,7 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
   const [activeFilter, setActiveFilter] = useState('Todas');
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('Todos');
-  const [selectedCalendarDate, setSelectedCalendarDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState(getLocalDateStr());
   const [calendarView, setCalendarView] = useState('Semana');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [createdActivity, setCreatedActivity] = useState(null);
@@ -38,6 +42,8 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
   const [isRecurring, setIsRecurring] = useState(false);
   const [selectedDays, setSelectedDays] = useState([]);
   const [repeatWeeks, setRepeatWeeks] = useState(1);
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [monthOffset, setMonthOffset] = useState(0);
 
   const { activities, createActivity, updateStatus, deleteActivity, deleteRecurrenceSeries, updateActivity } = useActivities();
 
@@ -57,7 +63,7 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
   const listRef = useRef(null);
 
   const filteredActivities = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDateStr();
     return activities.filter(act => {
       const matchesSearch = !searchTerm || act.titulo.toLowerCase().includes(searchTerm.toLowerCase()) || act.descripcion?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesType = typeFilter === 'Todos' || act.tipo === typeFilter;
@@ -69,7 +75,7 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
       if (activeFilter === 'Mañana') {
         const tomorrow = new Date();
         tomorrow.setDate(tomorrow.getDate() + 1);
-        return act.fecha === tomorrow.toISOString().split('T')[0];
+        return act.fecha === getLocalDateStr(tomorrow);
       }
       if (activeFilter === 'Vencidas') return act.estado === 'Vencida';
       if (activeFilter === 'Prioritarias') return act.prioridad === 'Prioritaria';
@@ -81,7 +87,7 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
 
   // --- Dynamic Stats Calculation ---
   const dynamicStats = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDateStr();
 
     // Simple week calculation for summary
     const now = new Date();
@@ -89,10 +95,10 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
     const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
     const monday = new Date(now);
     monday.setDate(now.getDate() + diffToMonday);
-    const weekStart = monday.toISOString().split('T')[0];
+    const weekStart = getLocalDateStr(monday);
     const weekEnd = new Date(monday);
     weekEnd.setDate(monday.getDate() + 6);
-    const weekEndStr = weekEnd.toISOString().split('T')[0];
+    const weekEndStr = getLocalDateStr(weekEnd);
 
     return [
       { id: 1, title: 'Actividades hoy', count: activities.filter(a => a.fecha === today).length, desc: 'Programadas', icon: Calendar, color: 'text-blue-600', bg: 'bg-blue-50' },
@@ -106,7 +112,7 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
 
   const dynamicAlerts = useMemo(() => {
     const alerts = [];
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDateStr();
     const todayActs = activities.filter(a => a.fecha === today);
     const priority = activities.filter(a => a.prioridad === 'Prioritaria' && a.estado !== 'Realizada' && a.estado !== 'Completada');
     const overdue = activities.filter(a => a.estado === 'Vencida');
@@ -132,38 +138,36 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
   const weekDays = useMemo(() => {
     const days = [];
     const now = new Date();
-    const dayOfWeek = now.getDay();
-    const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
 
-    const monday = new Date(now);
-    monday.setDate(now.getDate() + diffToMonday);
+    if (calendarView === 'Mes') {
+      const targetMonth = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
+      const dayOfFirst = targetMonth.getDay();
+      const diff = dayOfFirst === 0 ? -6 : 1 - dayOfFirst;
+      const startGrid = new Date(targetMonth);
+      startGrid.setDate(targetMonth.getDate() + diff);
 
-    const range = calendarView === 'Mes' ? 42 : 7;
-
-    for (let i = 0; i < range; i++) {
-      const d = new Date(monday);
-      d.setDate(monday.getDate() + i);
-
-      if (calendarView === 'Mes') {
-        const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-        const dayOfFirst = firstOfMonth.getDay();
-        const diff = dayOfFirst === 0 ? -6 : 1 - dayOfFirst;
-        const startGrid = new Date(firstOfMonth);
-        startGrid.setDate(firstOfMonth.getDate() + diff);
-
+      for (let i = 0; i < 42; i++) {
         const gridDate = new Date(startGrid);
         gridDate.setDate(startGrid.getDate() + i);
-
         days.push({
-          full: gridDate.toISOString().split('T')[0],
+          full: getLocalDateStr(gridDate),
           num: gridDate.getDate(),
           label: gridDate.toLocaleDateString('es-ES', { weekday: 'short' }).toUpperCase().replace('.', ''),
           month: gridDate.toLocaleDateString('es-ES', { month: 'short' }).toUpperCase().replace('.', ''),
-          isCurrentMonth: gridDate.getMonth() === now.getMonth()
+          isCurrentMonth: gridDate.getMonth() === targetMonth.getMonth()
         });
-      } else {
+      }
+    } else {
+      const dayOfWeek = now.getDay();
+      const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+      const monday = new Date(now);
+      monday.setDate(now.getDate() + diffToMonday + weekOffset * 7);
+
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(monday);
+        d.setDate(monday.getDate() + i);
         days.push({
-          full: d.toISOString().split('T')[0],
+          full: getLocalDateStr(d),
           num: d.getDate(),
           label: d.toLocaleDateString('es-ES', { weekday: 'short' }).toUpperCase().replace('.', ''),
           month: d.toLocaleDateString('es-ES', { month: 'short' }).toUpperCase().replace('.', ''),
@@ -172,7 +176,7 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
       }
     }
     return days;
-  }, [calendarView]);
+  }, [calendarView, weekOffset, monthOffset]);
 
   const activitiesForSelectedDate = useMemo(() => {
     return activities
@@ -352,6 +356,43 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
     ));
   }, [filteredActivities, openMenuId, handleChangeStatus]);
 
+  const calendarHeaderLabel = useMemo(() => {
+    const now = new Date();
+    if (calendarView === 'Mes') {
+      const target = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
+      return target.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+    }
+    if (weekDays.length === 0) return '';
+    const first = new Date(weekDays[0].full + 'T00:00:00');
+    const last = new Date(weekDays[weekDays.length - 1].full + 'T00:00:00');
+    const firstMon = first.toLocaleDateString('es-ES', { month: 'short' }).replace('.', '');
+    const lastMon = last.toLocaleDateString('es-ES', { month: 'short' }).replace('.', '');
+    if (firstMon === lastMon) {
+      return `${first.getDate()} – ${last.getDate()} ${lastMon} ${last.getFullYear()}`;
+    }
+    return `${first.getDate()} ${firstMon} – ${last.getDate()} ${lastMon} ${last.getFullYear()}`;
+  }, [calendarView, weekDays, weekOffset, monthOffset]);
+
+  const handleCalendarPrev = () => {
+    if (calendarView === 'Mes') setMonthOffset(p => p - 1);
+    else if (calendarView === 'Semana') setWeekOffset(p => p - 1);
+    else {
+      const d = new Date(selectedCalendarDate + 'T00:00:00');
+      d.setDate(d.getDate() - 1);
+      setSelectedCalendarDate(getLocalDateStr(d));
+    }
+  };
+
+  const handleCalendarNext = () => {
+    if (calendarView === 'Mes') setMonthOffset(p => p + 1);
+    else if (calendarView === 'Semana') setWeekOffset(p => p + 1);
+    else {
+      const d = new Date(selectedCalendarDate + 'T00:00:00');
+      d.setDate(d.getDate() + 1);
+      setSelectedCalendarDate(getLocalDateStr(d));
+    }
+  };
+
   const scrollTo = (ref) => {
     ref.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -406,7 +447,7 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
 
           // Only if it's not in the past relative to the start date (optional check)
           if (current >= startDate || w > 0) {
-            const dateStr = current.toISOString().split('T')[0];
+            const dateStr = getLocalDateStr(current);
             const saved = createActivity({ ...baseActivity, fecha: dateStr });
             instances.push(saved);
           }
@@ -573,83 +614,204 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
         </section>
 
         <section ref={calendarRef}>
-          <div className="flex justify-between items-center mb-3">
-            <h2 className="text-base font-bold text-slate-800">Agenda {calendarView.toLowerCase()}</h2>
-          </div>
           <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-            <div className="p-3 bg-slate-50/50 border-b border-slate-100 flex justify-center">
-              <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-100">
-                {['Día', 'Semana', 'Mes'].map((view) => (
-                  <button key={view} onClick={() => setCalendarView(view)} className={`px-4 py-1.5 text-[10px] font-bold rounded-lg transition-all ${calendarView === view ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>{view}</button>
-                ))}
+
+            {/* ── Header: título + selector de vista ── */}
+            <div className="px-4 pt-4 pb-3 border-b border-slate-100">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                  <Calendar size={17} className="text-blue-500" />
+                  Agenda
+                </h2>
+                <div className="flex bg-slate-100 p-0.5 rounded-xl gap-0.5">
+                  {['Día', 'Semana', 'Mes'].map((view) => (
+                    <button
+                      key={view}
+                      onClick={() => { setCalendarView(view); setWeekOffset(0); setMonthOffset(0); }}
+                      className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all min-h-[32px] ${calendarView === view ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                      {view}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── Navegación mes/semana ── */}
+              <div className="flex items-center justify-between">
+                <button
+                  onClick={handleCalendarPrev}
+                  className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-slate-100 active:bg-slate-200 transition-colors text-slate-500 cursor-pointer"
+                  aria-label="Anterior"
+                >
+                  <ChevronLeft size={18} />
+                </button>
+                <span className="text-sm font-semibold text-slate-700 capitalize select-none">
+                  {calendarView === 'Día'
+                    ? new Date(selectedCalendarDate + 'T00:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })
+                    : calendarHeaderLabel}
+                </span>
+                <button
+                  onClick={handleCalendarNext}
+                  className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-slate-100 active:bg-slate-200 transition-colors text-slate-500 cursor-pointer"
+                  aria-label="Siguiente"
+                >
+                  <ChevronRight size={18} />
+                </button>
               </div>
             </div>
-            <div className="p-4 border-b border-slate-100">
-              {calendarView === 'Mes' ? (
+
+            {/* ── Grid de días (Semana) ── */}
+            {calendarView === 'Semana' && (
+              <div className="px-3 py-3 border-b border-slate-100">
+                <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-hide snap-x">
+                  {weekDays.map((day) => {
+                    const isSelected = day.full === selectedCalendarDate;
+                    const isToday = day.full === getLocalDateStr();
+                    const actCount = activities.filter(a => a.fecha === day.full).length;
+                    return (
+                      <button
+                        key={day.full}
+                        onClick={() => setSelectedCalendarDate(day.full)}
+                        className={`flex flex-col items-center min-w-[44px] min-h-[72px] py-2 px-1 rounded-2xl transition-all snap-center shrink-0 cursor-pointer relative
+                          ${isSelected
+                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25'
+                            : isToday
+                            ? 'ring-2 ring-blue-400 ring-offset-1 bg-blue-50 text-blue-700'
+                            : 'text-slate-500 hover:bg-slate-50 active:bg-slate-100'}`}
+                      >
+                        <span className={`text-[9px] font-bold mb-1 ${isSelected ? 'text-blue-100' : isToday ? 'text-blue-500' : 'text-slate-400'}`}>
+                          {day.label}
+                        </span>
+                        <span className="text-sm font-black leading-tight">{day.num}</span>
+                        <span className={`text-[8px] font-semibold mt-0.5 ${isSelected ? 'text-blue-200' : 'text-slate-300'}`}>
+                          {day.month}
+                        </span>
+                        {actCount > 0 && (
+                          <div className="flex gap-0.5 mt-1.5">
+                            {[...Array(Math.min(actCount, 3))].map((_, i) => (
+                              <div key={i} className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white/60' : isToday ? 'bg-blue-400' : 'bg-slate-300'}`} />
+                            ))}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* ── Grid de días (Mes) ── */}
+            {calendarView === 'Mes' && (
+              <div className="px-3 py-3 border-b border-slate-100">
                 <div className="grid grid-cols-7 gap-1">
-                  {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((d, i) => (
-                    <div key={i} className="text-[8px] font-black text-slate-300 text-center mb-1">{d}</div>
+                  {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((d, i) => (
+                    <div key={i} className="text-[9px] font-black text-slate-300 text-center py-1">{d}</div>
                   ))}
                   {weekDays.map((day) => {
                     const isSelected = day.full === selectedCalendarDate;
-                    const isToday = day.full === new Date().toISOString().split('T')[0];
-                    const hasActivities = activities.some(a => a.fecha === day.full);
+                    const isToday = day.full === getLocalDateStr();
+                    const actCount = activities.filter(a => a.fecha === day.full).length;
                     return (
-                      <button key={day.full} onClick={() => setSelectedCalendarDate(day.full)} className={`aspect-square flex flex-col items-center justify-center rounded-lg transition-all relative ${isSelected ? 'bg-blue-600 text-white shadow-md' : day.isCurrentMonth ? 'bg-white text-slate-700 hover:bg-slate-50' : 'bg-slate-50/30 text-slate-300'}`}>
-                        <span className="text-[10px] font-bold">{day.num}</span>
-                        {hasActivities && !isSelected && <div className={`absolute bottom-1 w-1 h-1 rounded-full ${isToday ? 'bg-blue-600' : 'bg-slate-300'}`}></div>}
+                      <button
+                        key={day.full}
+                        onClick={() => setSelectedCalendarDate(day.full)}
+                        className={`aspect-square flex flex-col items-center justify-center rounded-xl transition-all relative cursor-pointer
+                          ${isSelected
+                            ? 'bg-blue-600 text-white shadow-md'
+                            : isToday
+                            ? 'ring-2 ring-blue-400 ring-offset-1 text-blue-700 font-bold bg-blue-50'
+                            : day.isCurrentMonth
+                            ? 'text-slate-700 hover:bg-slate-50 active:bg-slate-100'
+                            : 'text-slate-300 hover:bg-slate-50/60'}`}
+                      >
+                        <span className="text-[11px] font-bold leading-none">{day.num}</span>
+                        {actCount > 0 && !isSelected && (
+                          <div className="absolute bottom-1 flex gap-0.5">
+                            {[...Array(Math.min(actCount, 3))].map((_, i) => (
+                              <div key={i} className={`w-1 h-1 rounded-full ${isToday ? 'bg-blue-500' : 'bg-slate-300'}`} />
+                            ))}
+                          </div>
+                        )}
+                        {actCount > 0 && isSelected && (
+                          <div className="absolute bottom-1 w-1 h-1 rounded-full bg-white/50" />
+                        )}
                       </button>
                     );
                   })}
                 </div>
-              ) : (
-                <div className="flex overflow-x-auto gap-2.5 pb-2 scrollbar-hide snap-x">
-                  {weekDays.filter(d => calendarView !== 'Día' || d.full === new Date().toISOString().split('T')[0] || d.full === selectedCalendarDate).map((day) => {
-                    const isSelected = day.full === selectedCalendarDate;
-                    return (
-                      <button key={day.full} onClick={() => setSelectedCalendarDate(day.full)} className={`flex flex-col items-center min-w-[48px] py-2.5 rounded-xl transition-all snap-center ${isSelected ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'bg-white text-slate-500 border border-slate-100'}`}>
-                        <span className={`text-[8px] font-bold mb-0.5 ${isSelected ? 'text-blue-100' : 'text-slate-400'}`}>{day.label}</span>
-                        <span className="text-sm font-black leading-tight">{day.num}</span>
-                        <span className={`text-[7px] font-bold ${isSelected ? 'text-blue-200' : 'text-slate-300'}`}>{day.month}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-            <div className="p-4 bg-white">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Actividades {selectedCalendarDate === new Date().toISOString().split('T')[0] ? 'de hoy' : ''}</h3>
-                <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">{selectedCalendarDate.split('-').reverse().join('/')}</span>
               </div>
-              <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+            )}
+
+            {/* ── Agenda del día seleccionado ── */}
+            <div className="p-4">
+              {/* Sub-header */}
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full shrink-0 ${selectedCalendarDate === getLocalDateStr() ? 'bg-blue-500' : 'bg-slate-300'}`} />
+                  <h3 className="text-xs font-bold text-slate-600 uppercase tracking-wider">
+                    {selectedCalendarDate === getLocalDateStr() ? 'Hoy' : new Date(selectedCalendarDate + 'T00:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' })}
+                  </h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${activitiesForSelectedDate.length > 0 ? 'text-blue-600 bg-blue-50 border-blue-100' : 'text-slate-400 bg-slate-50 border-slate-100'}`}>
+                    {activitiesForSelectedDate.length} {activitiesForSelectedDate.length === 1 ? 'actividad' : 'actividades'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Lista de actividades */}
+              <div className="space-y-1.5 max-h-[300px] overflow-y-auto">
                 {activitiesForSelectedDate.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-8 text-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
-                    <Calendar size={20} className="text-slate-300 mb-2" />
-                    <p className="text-[10px] text-slate-400 font-medium px-4">No hay actividades para esta fecha</p>
+                  <div className="flex flex-col items-center justify-center py-10 text-center bg-slate-50/70 rounded-2xl border border-dashed border-slate-200">
+                    <div className="w-10 h-10 bg-white rounded-2xl flex items-center justify-center mb-2 shadow-sm border border-slate-100">
+                      <Calendar size={18} className="text-slate-300" />
+                    </div>
+                    <p className="text-xs font-semibold text-slate-400 mb-2">Sin actividades para esta fecha</p>
+                    <button
+                      onClick={() => setIsModalOpen(true)}
+                      className="text-[11px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer"
+                    >
+                      + Agendar actividad
+                    </button>
                   </div>
                 ) : (
-                  activitiesForSelectedDate.map((act) => (
-                    <div key={act.id} className="flex gap-3 group cursor-pointer" onClick={() => { setSearchTerm(act.titulo); scrollTo(listRef); }}>
-                      <div className="flex flex-col items-center py-1">
-                        <span className="text-[10px] font-black text-blue-600 leading-none">{act.horaInicio}</span>
-                        <div className="w-px h-full bg-slate-100 my-1 group-last:bg-transparent"></div>
-                      </div>
-                      <div className="flex-1">
-                        <div className={`p-3 rounded-xl border transition-all ${act.prioridad === 'Prioritaria' ? 'bg-red-50 border-red-100' : 'bg-white border-slate-100 group-hover:border-blue-100'}`}>
-                          <div className="flex justify-between items-start">
-                            <h4 className="text-xs font-bold text-slate-800 line-clamp-1">{act.titulo}</h4>
-                            {act.prioridad === 'Prioritaria' && <span className="text-[7px] bg-red-600 text-white px-1 py-0.5 rounded ml-1">!</span>}
+                  activitiesForSelectedDate.map((act) => {
+                    const borderColor = act.prioridad === 'Prioritaria' ? 'border-l-red-500' : act.prioridad === 'Alta' ? 'border-l-orange-400' : 'border-l-blue-400';
+                    const statusColors = {
+                      'Realizada': 'text-green-600 bg-green-50', 'Completada': 'text-green-600 bg-green-50',
+                      'En curso': 'text-purple-600 bg-purple-50', 'Vencida': 'text-red-600 bg-red-50',
+                      'Cancelada': 'text-slate-500 bg-slate-50', 'Pendiente': 'text-orange-600 bg-orange-50',
+                    };
+                    return (
+                      <div
+                        key={act.id}
+                        onClick={() => { setSearchTerm(act.titulo); scrollTo(listRef); }}
+                        className="flex gap-3 group cursor-pointer hover:bg-slate-50 active:bg-slate-100 rounded-xl px-2 py-2 -mx-2 transition-colors"
+                      >
+                        {/* Columna de hora */}
+                        <div className="flex flex-col items-end min-w-[38px] pt-0.5">
+                          <span className="text-[10px] font-black text-blue-600 leading-none tabular-nums">{act.horaInicio}</span>
+                          <div className="w-px flex-1 bg-slate-100 my-1 mx-auto" />
+                          <span className="text-[9px] text-slate-300 tabular-nums">{act.horaFin}</span>
+                        </div>
+                        {/* Tarjeta */}
+                        <div className={`flex-1 pl-3 border-l-2 ${borderColor}`}>
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-xs font-bold text-slate-800 leading-snug">{act.titulo}</p>
+                            {(statusColors[act.estado]) && (
+                              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 ${statusColors[act.estado] || 'text-slate-500 bg-slate-50'}`}>
+                                {act.estado}
+                              </span>
+                            )}
                           </div>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-[9px] text-slate-500">{act.tipo}</span>
-                            <span className="text-[9px] text-slate-400">•</span>
-                            <span className="text-[9px] text-slate-500">{act.sede}</span>
-                          </div>
+                          <p className="text-[10px] text-slate-400 mt-0.5">{act.tipo} · {act.sede}</p>
+                          {act.estudianteRelacionado && (
+                            <p className="text-[10px] text-slate-500 mt-0.5 font-medium">{act.estudianteRelacionado}</p>
+                          )}
                         </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>

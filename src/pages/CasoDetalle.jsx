@@ -7,7 +7,7 @@ import { useAlerts } from '../hooks/useAlerts'
 export default function CasoDetalle({ caseId, onBack, onEdit }) {
   const { cases, addSeguimiento, updateCase, updateSeguimiento, deleteSeguimiento, closeCase } = useCases()
   const { activities, createActivity, updateActivity, deleteActivity } = useActivities()
-  const { alerts } = useAlerts()
+  const { alerts, markAsAttended, createAlert } = useAlerts()
   const [activeTab, setActiveTab] = useState('seguimientos') // seguimientos, info
   const [showSeguimientoModal, setShowSeguimientoModal] = useState(false)
   const [showCitaModal, setShowCitaModal] = useState(false)
@@ -16,6 +16,8 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
   const [citaParaConfirmar, setCitaParaConfirmar] = useState(null)
   const [editingSeguimiento, setEditingSeguimiento] = useState(null)
   const [showConfigMenu, setShowConfigMenu] = useState(false)
+  const [showConfirmSoporteModal, setShowConfirmSoporteModal] = useState(false)
+  const [saludAlertToConfirm, setSaludAlertToConfirm] = useState(null)
 
   const caseData = cases.find(c => c.id === caseId)
 
@@ -58,13 +60,13 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
   }
 
   useEffect(() => {
-    if (showSeguimientoModal || showCitaModal || showRutaModal || showConfirmCitaModal) {
+    if (showSeguimientoModal || showCitaModal || showRutaModal || showConfirmCitaModal || showConfirmSoporteModal) {
       document.body.classList.add('no-scroll');
     } else {
       document.body.classList.remove('no-scroll');
     }
     return () => document.body.classList.remove('no-scroll');
-  }, [showSeguimientoModal, showCitaModal, showRutaModal, showConfirmCitaModal]);
+  }, [showSeguimientoModal, showCitaModal, showRutaModal, showConfirmCitaModal, showConfirmSoporteModal]);
 
   if (!caseData) {
     return (
@@ -241,26 +243,46 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
     e.preventDefault()
     const formData = new FormData(e.target)
     const entidad = formData.get('entidad')
-    
+    const today = new Date().toISOString().split('T')[0]
+
     // 1. Add follow-up record
     addSeguimiento(caseId, {
-      fecha: new Date().toISOString().split('T')[0],
+      fecha: today,
       tipoSeguimiento: `Activación Ruta: ${entidad}`,
       descripcion: `Entidad: ${entidad}\nMotivo: ${formData.get('motivo')}\nObservaciones: ${formData.get('descripcion')}`,
       responsable: 'Orientación Escolar'
     })
 
     // 2. Update case's activated routes for reporting
-    const currentRoutes = caseData.rutaActivada 
+    const currentRoutes = caseData.rutaActivada
       ? (Array.isArray(caseData.rutaActivada) ? caseData.rutaActivada : [caseData.rutaActivada])
       : [];
-    
+
     if (!currentRoutes.includes(entidad)) {
-      updateCase(caseId, { 
-        rutaActivada: [...currentRoutes, entidad] 
+      updateCase(caseId, {
+        rutaActivada: [...currentRoutes, entidad]
       });
     }
-    
+
+    // 3. Si es Sector Salud, crear alerta prioritaria para verificar soporte de atención
+    if (entidad === 'Sector Salud (EPS/Hospital)') {
+      createAlert({
+        tipo: 'RutaSalud',
+        titulo: 'Pendiente: soporte de atención en salud',
+        descripcion: `Ruta activada con Sector Salud para ${caseData.estudiante} (${caseData.codigo}). Motivo: ${formData.get('motivo')}. Verificar recepción del documento de soporte de atención médica.`,
+        prioridad: 'Prioritaria',
+        estado: 'Activa',
+        fecha: today,
+        sede: caseData.sede,
+        grado: caseData.grado,
+        caseId,
+        codigoCaso: caseData.codigo,
+        estudiante: caseData.estudiante,
+        accionSugerida: 'Verificar entrega de soporte',
+        rutaDestino: 'casos'
+      })
+    }
+
     setShowRutaModal(false)
     alert(`Ruta con ${entidad} activada exitosamente.`)
   }
@@ -269,6 +291,34 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
     updateCase(caseId, updates)
     setShowConfigMenu(false)
     alert("Caso actualizado correctamente")
+  }
+
+  const handleConfirmSoporteSalud = (e) => {
+    e.preventDefault()
+    const formData = new FormData(e.target)
+    const recibiDocumento = formData.get('recibiDocumento') === 'si'
+    const observaciones = formData.get('observaciones')?.trim()
+
+    // Registrar seguimiento de la verificación
+    addSeguimiento(caseId, {
+      fecha: new Date().toISOString().split('T')[0],
+      tipoSeguimiento: 'Externo (Salud/ICBF)',
+      descripcion: [
+        `Verificación de soporte de atención en salud.`,
+        `Documento recibido: ${recibiDocumento ? 'Sí' : 'No'}`,
+        observaciones ? `Observaciones: ${observaciones}` : null
+      ].filter(Boolean).join('\n'),
+      responsable: 'Orientación Escolar',
+      hasSoporte: recibiDocumento
+    })
+
+    // Si se recibió, marcar la alerta como atendida
+    if (recibiDocumento) {
+      markAsAttended(saludAlertToConfirm.id)
+    }
+
+    setShowConfirmSoporteModal(false)
+    setSaludAlertToConfirm(null)
   }
 
   const getObservacionesVal = (seg) => {
@@ -386,11 +436,8 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
                     <p className="text-xs font-bold text-orange-900">{alert.titulo}</p>
                     <p className="text-[10px] text-orange-700">{alert.descripcion}</p>
                   </div>
-                  <button 
-                    onClick={() => {
-                      setShowSeguimientoModal(true);
-                      // Pre-fill type if possible (logic would need state but let's keep it simple for now)
-                    }}
+                  <button
+                    onClick={() => setShowSeguimientoModal(true)}
                     className="text-[10px] font-bold text-orange-600 bg-orange-100 px-3 py-1.5 rounded-lg hover:bg-orange-200 transition-colors shrink-0"
                   >
                     Registrar
@@ -400,6 +447,33 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
             </div>
           </div>
         )}
+
+        {/* Alerta prioritaria: soporte de atención en salud pendiente */}
+        {alerts.filter(a => a.caseId === caseId && a.tipo === 'RutaSalud' && a.estado !== 'Atendida').map(saludAlert => (
+          <div key={saludAlert.id} className="bg-red-50 border-2 border-red-200 rounded-2xl p-4 shadow-sm animate-[fadeIn_0.3s_ease-out]">
+            <div className="flex items-start gap-3 mb-3">
+              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center shrink-0 border border-red-200">
+                <Activity size={18} className="text-red-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[9px] font-black text-red-600 bg-red-100 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                    Prioritaria
+                  </span>
+                  <span className="text-[9px] font-bold text-red-400 uppercase tracking-wide">Sector Salud</span>
+                </div>
+                <h2 className="text-sm font-bold text-red-900 leading-tight">{saludAlert.titulo}</h2>
+                <p className="text-[11px] text-red-700/80 mt-1 leading-relaxed">{saludAlert.descripcion}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => { setSaludAlertToConfirm(saludAlert); setShowConfirmSoporteModal(true); }}
+              className="w-full py-2.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 active:bg-red-800 rounded-xl transition-colors flex items-center justify-center gap-2 shadow-sm shadow-red-600/20"
+            >
+              <CheckCircle2 size={14} /> Verificar entrega de soporte
+            </button>
+          </div>
+        ))}
 
         {/* Tabs */}
         <div className="flex border-b border-slate-200">
@@ -740,6 +814,73 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
                 <div className="flex gap-3 pt-2">
                   <button type="button" onClick={() => setShowRutaModal(false)} className="flex-1 py-3 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">Cancelar</button>
                   <button type="submit" className="flex-1 py-3 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors shadow-sm shadow-red-600/30">Activar Ruta</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showConfirmSoporteModal && saludAlertToConfirm && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 flex items-center justify-center p-4 animate-[fadeIn_0.2s_ease-out]">
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-[slideUp_0.3s_ease-out] flex flex-col max-h-[85vh]">
+            <div className="px-5 py-4 border-b border-red-100 flex justify-between items-center bg-red-50 shrink-0">
+              <h2 className="text-base font-bold text-red-800 flex items-center gap-2">
+                <Activity size={18} className="text-red-600" /> Verificar soporte de salud
+              </h2>
+              <button
+                type="button"
+                onClick={() => { setShowConfirmSoporteModal(false); setSaludAlertToConfirm(null); }}
+                className="p-2 hover:bg-white rounded-full text-slate-400 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5">
+              <div className="bg-red-50 border border-red-100 rounded-xl p-3 mb-4 text-xs text-red-800 font-medium leading-relaxed">
+                {saludAlertToConfirm.descripcion}
+              </div>
+              <form onSubmit={handleConfirmSoporteSalud} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-2">
+                    ¿Se recibió el documento de soporte de atención? *
+                  </label>
+                  <select
+                    required
+                    name="recibiDocumento"
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-red-500 bg-white"
+                  >
+                    <option value="">-- Selecciona --</option>
+                    <option value="si">Sí, se recibió el documento</option>
+                    <option value="no">No, aún no se ha recibido</option>
+                  </select>
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    La alerta se cerrará solo si se confirma la recepción del documento.
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Observaciones (Opcional)</label>
+                  <textarea
+                    name="observaciones"
+                    rows="3"
+                    placeholder="Notas adicionales sobre el soporte de atención..."
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-red-500 resize-none"
+                  ></textarea>
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => { setShowConfirmSoporteModal(false); setSaludAlertToConfirm(null); }}
+                    className="flex-1 py-3 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-3 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors shadow-sm shadow-red-600/30"
+                  >
+                    Registrar verificación
+                  </button>
                 </div>
               </form>
             </div>

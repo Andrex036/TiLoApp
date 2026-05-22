@@ -35,7 +35,7 @@ export default function AlertasDashboard({ onNavigate }) {
 
   const priorityList = alerts.filter(a => a.prioridad === 'Prioritaria' && a.estado !== 'Atendida').slice(0, 3);
 
-  const categories = ['Todas', 'Caso', 'Actividad', 'Seguimiento', 'Citación', 'Ruta externa', 'Vencimiento', 'Informativa'];
+  const categories = ['Todas', 'Caso', 'Actividad', 'Seguimiento', 'Citación', 'Ruta externa', 'RutaSalud', 'Vencimiento', 'Informativa'];
 
   const filteredAlerts = useMemo(() => {
     return alerts.filter(a => {
@@ -91,6 +91,7 @@ export default function AlertasDashboard({ onNavigate }) {
       case 'Seguimiento': return <Clock size={24} className="text-orange-500" />;
       case 'Citación': return <UserX size={24} className="text-purple-500" />;
       case 'Ruta externa': return <ExternalLink size={24} className="text-indigo-500" />;
+      case 'RutaSalud': return <Activity size={24} className="text-red-600" />;
       case 'Vencimiento': return <AlertTriangle size={24} className="text-red-500" />;
       default: return <Bell size={24} className="text-slate-500" />;
     }

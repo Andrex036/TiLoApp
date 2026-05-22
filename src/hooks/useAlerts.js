@@ -21,10 +21,12 @@ export const useAlerts = () => {
 
   const markAsAttended = (id) => alertService.markAsAttended(id);
   const triggerAlertGeneration = () => alertService.generateAlerts();
+  const createAlert = (alertData) => alertService.createAlert(alertData);
 
   return {
     alerts,
     markAsAttended,
-    triggerAlertGeneration
+    triggerAlertGeneration,
+    createAlert
   };
 };
