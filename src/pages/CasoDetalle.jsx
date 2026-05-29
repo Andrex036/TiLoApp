@@ -633,15 +633,29 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
                           <div className="relative">
                             <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{seg.descripcion}</p>
                           </div>
-                          {seg.esCita && !seg.esCitaResultado && !seg.citaConfirmada && (
-                            <button
-                              type="button"
-                              onClick={() => { setEditingSeguimiento(null); setCitaParaConfirmar(seg); setShowConfirmCitaModal(true) }}
-                              className="mt-3 w-full flex items-center justify-center gap-2 py-2 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-xl border border-blue-100 transition-colors"
-                            >
-                              <CheckCircle2 size={14} /> Confirmar asistencia
-                            </button>
-                          )}
+                          {seg.esCita && !seg.esCitaResultado && !seg.citaConfirmada && (() => {
+                            const linkedActivity = getLinkedCitaActivity(seg.id)
+                            if (!linkedActivity) return null
+
+                            const appointmentDate = linkedActivity.fecha
+                            const appointmentTime = linkedActivity.horaInicio
+                            const now = new Date()
+                            const today = now.toISOString().split('T')[0]
+                            const currentTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0')
+
+                            // Only show button if appointment date is today or earlier AND current time is at/past appointment start
+                            const canConfirm = appointmentDate <= today && (appointmentDate < today || appointmentTime <= currentTime)
+
+                            return canConfirm ? (
+                              <button
+                                type="button"
+                                onClick={() => { setEditingSeguimiento(null); setCitaParaConfirmar(seg); setShowConfirmCitaModal(true) }}
+                                className="mt-3 w-full flex items-center justify-center gap-2 py-2 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-xl border border-blue-100 transition-colors"
+                              >
+                                <CheckCircle2 size={14} /> Confirmar asistencia
+                              </button>
+                            ) : null
+                          })()}
 
                           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end mt-3 gap-1">
                              <div className="text-[9px] text-slate-400 italic">
