@@ -1,5 +1,7 @@
 import { saveData, readData } from '../utils/storage';
 import { initialCases } from '../data/mockCases';
+import { activityService } from './activityService';
+import { alertService } from './alertService';
 
 const CASES_KEY = 'tilo_cases';
 
@@ -134,11 +136,23 @@ export const caseService = {
   },
 
   /**
-   * Delete a case
+   * Delete a case and all related activities and alerts
    */
   deleteCase: (id) => {
     const cases = caseService.getCases();
     if (!cases.some(c => c.id === id)) return false;
+
+    // Delete all activities related to this case
+    const activities = activityService.getActivities();
+    const filtered = activities.filter(a => a.caseId !== id);
+    saveData('tilo_activities', filtered);
+
+    // Delete all alerts related to this case
+    const alerts = alertService.getAlerts();
+    const filteredAlerts = alerts.filter(a => a.caseId !== id);
+    saveData('tilo_alerts', filteredAlerts);
+
+    // Delete the case
     saveData(CASES_KEY, cases.filter(c => c.id !== id));
     return true;
   }
