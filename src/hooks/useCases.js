@@ -20,7 +20,7 @@ export const useCases = () => {
     setCases(Array.isArray(updatedCases) ? updatedCases : []);
     return result;
   };
-  const updateCase = (id, updates) => caseService.updateCase(id, updates);
+  const updateCase = (id, updates) => caseService.updateCase({ ...updates, id });
   const closeCase = (id) => caseService.closeCase(id);
   const addSeguimiento = (caseId, segData) => caseService.addSeguimiento(caseId, segData);
 

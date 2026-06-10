@@ -229,6 +229,18 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
     const formData = new FormData(e.target)
     const identificacion = formData.get('identificacion') || '';
     const confirmIdentificacion = formData.get('confirmIdentificacion') || '';
+    const nombre = formData.get('estudiante') || '';
+
+    // Validar campos requeridos
+    if (!nombre) {
+      alert("El nombre del estudiante es requerido.");
+      return;
+    }
+
+    if (!editingCase && !identificacion) {
+      alert("La identificación es requerida para crear un caso nuevo.");
+      return;
+    }
 
     // Validar coincidencia de identificación si es nuevo Y se ingresó algo
     if (!editingCase && identificacion && identificacion !== confirmIdentificacion) {
@@ -242,14 +254,22 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
       return;
     }
 
+    // Estructura principal para API (required fields)
     const caseData = {
       identificacion: identificacion,
-      identificacionOrigen: formData.get('identificacionOrigen'),
-      nombre: formData.get('estudiante'), // Map estudiante field to nombre for API
-      estudiante: formData.get('estudiante'), // Keep estudiante for UI compatibility
+      nombre: nombre, // Map estudiante field to nombre for API
+      descripcion: formData.get('observaciones'), // Map observaciones to descripcion for API
+      tipoCaso: 'Nuevo',
+      estado: 'Activo',
+    }
+
+    // Additional fields (stored in data JSON column)
+    const additionalData = {
+      estudiante: nombre,
       genero: formData.get('genero'),
       grado: formData.get('grado'),
       sede: formData.get('sede'),
+      identificacionOrigen: formData.get('identificacionOrigen'),
       motivoRemision: formData.get('motivoConsulta'),
       motivo: formData.get('motivoConsulta'),
       nivelRiesgo: formData.get('nivelRiesgo'),
@@ -259,8 +279,16 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
 
     if (editingCase) {
       try {
-        await updateCase(editingCase.id, caseData)
-        setCreatedCase({ ...editingCase, ...caseData, isEdit: true })
+        const updateData = {
+          ...additionalData,
+          identificacion: identificacion,
+          nombre: nombre,
+          descripcion: formData.get('observaciones'),
+          id: editingCase.id
+          // Note: tipoCaso and estado are NOT updated when editing a case
+        }
+        await updateCase(editingCase.id, updateData)
+        setCreatedCase({ ...editingCase, ...updateData, isEdit: true })
         setEditingCase(null)
       } catch (error) {
         console.error('Error updating case:', error);
@@ -271,10 +299,9 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
         // Generate unique ID for new case
         const newCaseData = {
           ...caseData,
+          ...additionalData,
           id: `case-${Date.now()}`, // Generate unique ID
           codigo: `CASO-${Date.now().toString().slice(-6)}`, // Generate case code
-          tipoCaso: 'Nuevo',
-          estado: 'Activo',
           seguimientos: []
         }
         const savedCase = await createCase(newCaseData)
@@ -778,8 +805,8 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
                   <div className="space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">Identificación (Opcional)</label>
-                        <input name="identificacion" type="number" defaultValue={editingCase?.identificacion?.toString().startsWith('case-') ? '' : editingCase?.identificacion} placeholder="Número de documento" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Identificación *</label>
+                        <input required name="identificacion" type="number" defaultValue={editingCase?.identificacion?.toString().startsWith('case-') ? '' : editingCase?.identificacion} placeholder="Número de documento" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
                       </div>
                       {!editingCase && (
                         <div>
