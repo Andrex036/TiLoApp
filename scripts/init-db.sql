@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS cases (
   estado TEXT DEFAULT 'Activo',
   fechaInicio TIMESTAMP,
   fechaFin TIMESTAMP,
+  data JSONB DEFAULT '{}'::jsonb,
   createdAt TIMESTAMP DEFAULT NOW(),
   updatedAt TIMESTAMP DEFAULT NOW()
 );
