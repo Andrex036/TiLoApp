@@ -1,5 +1,5 @@
 // api/db.js
-const { Pool } = require('pg');
+import { Pool } from 'pg';
 
 let pool = null;
 
@@ -25,4 +25,4 @@ async function query(text, params = []) {
   }
 }
 
-module.exports = { query, getPool };
+export { query, getPool };
