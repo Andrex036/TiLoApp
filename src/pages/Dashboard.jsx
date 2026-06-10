@@ -20,10 +20,10 @@ export default function HomeDashboard() {
   const currentPeriod = getCurrentPeriod();
 
   // Dynamic calculations for Cases
-  const casosActivos = cases.filter(c => c.estado === 'Activo' || c.estado === 'En seguimiento').length;
-  const casosNuevos = cases.filter(c => c.tipoCaso === 'Nuevo').length;
-  const casosAntiguos = cases.filter(c => c.tipoCaso === 'Antiguo').length;
-  const casosCerrados = cases.filter(c => c.estado === 'Cerrado').length;
+  const casosActivos = (cases || []).filter(c => c.estado === 'Activo' || c.estado === 'En seguimiento').length;
+  const casosNuevos = (cases || []).filter(c => c.tipoCaso === 'Nuevo').length;
+  const casosAntiguos = (cases || []).filter(c => c.tipoCaso === 'Antiguo').length;
+  const casosCerrados = (cases || []).filter(c => c.estado === 'Cerrado').length;
 
   // Generate Sede Cards with all sedes initialized
   const sedesMap = {
@@ -36,9 +36,9 @@ export default function HomeDashboard() {
     'El Carmen': 0
   };
 
-  cases.forEach(c => {
+  (cases || []).forEach(c => {
     if (c.estado !== 'Cerrado') {
-      let sedeName = c.sede;
+      let sedeName = c.sede || '';
 
       // Normalize previous or mock data formats to the standardized ones
       if (sedeName.includes('Santa Mónica') && (sedeName.includes('mañana') || sedeName.includes('JM'))) sedeName = 'Santa Mónica (JM)';
