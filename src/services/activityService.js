@@ -1,102 +1,72 @@
-import { saveData, readData } from '../utils/storage';
-import { initialActivities } from '../data/mockActivities';
-
-const ACT_KEY = 'tilo_activities';
+// src/services/activityService.js
+const API_BASE = '/api';
 
 export const activityService = {
-  initActivities: () => {
-    const existing = readData(ACT_KEY);
-    if (!existing) {
-      saveData(ACT_KEY, initialActivities);
-    } else {
-      // Check for overdue activities
-      activityService.checkOverdue();
+  /**
+   * Get activities for a case
+   */
+  getActivities: async (caseId) => {
+    try {
+      const res = await fetch(`${API_BASE}/activities?caseId=${caseId}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    } catch (error) {
+      console.error(`Failed to fetch activities for case ${caseId}:`, error);
+      return [];
     }
   },
 
-  getActivities: () => {
-    return readData(ACT_KEY) || [];
-  },
-
-  createActivity: (activityData) => {
-    const acts = activityService.getActivities();
-    const newAct = {
-      ...activityData,
-      id: `act-${Date.now()}`,
-      estado: activityData.estado || 'Programada',
-      prioridad: activityData.prioridad || 'Media',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    saveData(ACT_KEY, [...acts, newAct]);
-    return newAct;
-  },
-
-  updateActivityStatus: (id, newStatus) => {
-    const acts = activityService.getActivities();
-    const index = acts.findIndex(a => a.id === id);
-    if (index !== -1) {
-      acts[index] = { 
-        ...acts[index], 
-        estado: newStatus,
-        color: (newStatus === 'Realizada' || newStatus === 'Completada') ? 'green' : 
-               (newStatus === 'Pendiente') ? 'orange' : 
-               (newStatus === 'Cancelada' || newStatus === 'No asistió') ? 'slate' : acts[index].color,
-        updatedAt: new Date().toISOString() 
-      };
-      saveData(ACT_KEY, acts);
-      return acts[index];
+  /**
+   * Create a new activity
+   */
+  createActivity: async (activityData) => {
+    try {
+      const res = await fetch(`${API_BASE}/activities`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(activityData)
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    } catch (error) {
+      console.error('Failed to create activity:', error);
+      throw error;
     }
-    return null;
   },
 
-  updateActivity: (id, activityData) => {
-    const acts = activityService.getActivities();
-    const index = acts.findIndex(a => a.id === id);
-    if (index !== -1) {
-      acts[index] = { 
-        ...acts[index], 
-        ...activityData,
-        updatedAt: new Date().toISOString() 
-      };
-      saveData(ACT_KEY, acts);
-      return acts[index];
+  /**
+   * Update an activity
+   */
+  updateActivity: async (activityData) => {
+    try {
+      const res = await fetch(`${API_BASE}/activities`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(activityData)
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    } catch (error) {
+      console.error('Failed to update activity:', error);
+      throw error;
     }
-    return null;
   },
 
-  deleteActivity: (id) => {
-    const acts = activityService.getActivities();
-    const filtered = acts.filter(a => a.id !== id);
-    saveData(ACT_KEY, filtered);
-    return true;
-  },
-
-  deleteRecurrenceSeries: (recurrenceId) => {
-    const acts = activityService.getActivities();
-    const filtered = acts.filter(a => a.recurrenceId !== recurrenceId);
-    saveData(ACT_KEY, filtered);
-    return true;
-  },
-
-  checkOverdue: () => {
-    const acts = activityService.getActivities();
-    let updated = false;
-    const now = new Date();
-    const today = now.toISOString().split('T')[0];
-
-    acts.forEach(act => {
-      if (act.estado === 'Programada' || act.estado === 'En curso') {
-        if (act.fecha < today) {
-          act.estado = 'Vencida';
-          act.color = 'red';
-          updated = true;
-        }
-      }
-    });
-
-    if (updated) {
-      saveData(ACT_KEY, acts);
+  /**
+   * Delete an activity
+   */
+  deleteActivity: async (id) => {
+    try {
+      const res = await fetch(`${API_BASE}/activities`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    } catch (error) {
+      console.error('Failed to delete activity:', error);
+      throw error;
     }
   }
 };
