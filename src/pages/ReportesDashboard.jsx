@@ -47,20 +47,20 @@ export default function ReportesDashboard({ onNavigate }) {
     const today = new Date().toISOString().split('T')[0];
 
     // 1. Filter raw data by Sede and Date
-    const filteredCases = cases.filter(c => {
+    const filteredCases = (cases || []).filter(c => {
       const matchesSede = sedeFilter === 'Todas las sedes' || c.sede === sedeFilter;
       const caseDate = c.createdAt ? c.createdAt.split('T')[0] : today;
       const matchesDate = caseDate >= startDate && caseDate <= endDate;
       return matchesSede && matchesDate;
     });
 
-    const filteredActs = activities.filter(a => {
+    const filteredActs = (activities || []).filter(a => {
       const matchesSede = sedeFilter === 'Todas las sedes' || a.sede === sedeFilter;
       const matchesDate = a.fecha >= startDate && a.fecha <= endDate;
       return matchesSede && matchesDate;
     });
 
-    const filteredAlerts = alerts.filter(al => {
+    const filteredAlerts = (alerts || []).filter(al => {
       const matchesSede = sedeFilter === 'Todas las sedes' || al.sede === sedeFilter;
       const alertDate = al.createdAt ? al.createdAt.split('T')[0] : today;
       const matchesDate = alertDate >= startDate && alertDate <= endDate;

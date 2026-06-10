@@ -492,13 +492,13 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
         </div>
 
         {/* Alertas de seguimiento del caso */}
-        {alerts.filter(a => a.caseId === caseId && a.tipo === 'Seguimiento' && a.estado !== 'Atendida').length > 0 && (
+        {(alerts || []).filter(a => a.caseId === caseId && a.tipo === 'Seguimiento' && a.estado !== 'Atendida').length > 0 && (
           <div className="bg-orange-50 border border-orange-200 rounded-2xl p-4 shadow-sm">
             <h2 className="text-sm font-bold text-orange-800 mb-3 flex items-center gap-2">
               <AlertTriangle size={18} className="text-orange-600" /> Alertas de seguimiento
             </h2>
             <div className="space-y-2">
-              {alerts.filter(a => a.caseId === caseId && a.tipo === 'Seguimiento' && a.estado !== 'Atendida').map(alert => (
+              {(alerts || []).filter(a => a.caseId === caseId && a.tipo === 'Seguimiento' && a.estado !== 'Atendida').map(alert => (
                 <div key={alert.id} className="bg-white/60 border border-orange-100 rounded-xl p-3 flex justify-between items-center">
                   <div>
                     <p className="text-xs font-bold text-orange-900">{alert.titulo}</p>
@@ -517,7 +517,7 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
         )}
 
         {/* Alerta prioritaria: soporte de atención en salud pendiente */}
-        {alerts.filter(a => a.caseId === caseId && a.tipo === 'RutaSalud' && a.estado !== 'Atendida').map(saludAlert => (
+        {(alerts || []).filter(a => a.caseId === caseId && a.tipo === 'RutaSalud' && a.estado !== 'Atendida').map(saludAlert => (
           <div key={saludAlert.id} className="bg-red-50 border-2 border-red-200 rounded-2xl p-4 shadow-sm animate-[fadeIn_0.3s_ease-out]">
             <div className="flex items-start gap-3 mb-3">
               <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center shrink-0 border border-red-200">

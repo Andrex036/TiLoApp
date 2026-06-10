@@ -4,7 +4,7 @@ import { useRef, useEffect } from 'react'
 
 export default function MobileLayout({ children, currentTab, onTabChange }) {
   const { alerts } = useAlerts()
-  const activeAlertsCount = alerts.filter(a => ['Activa', 'Pendiente', 'Vencida', 'Programada'].includes(a.estado)).length
+  const activeAlertsCount = (alerts || []).filter(a => ['Activa', 'Pendiente', 'Vencida', 'Programada'].includes(a.estado)).length
   const mainRef = useRef(null)
 
   // Scroll to top when tab changes

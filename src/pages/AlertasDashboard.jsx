@@ -26,19 +26,19 @@ export default function AlertasDashboard({ onNavigate }) {
   const [statusFilter, setStatusFilter] = useState('Activas y Pendientes');
   
   // Calculate dynamic summary based on local state (to reflect "Atendida" changes)
-  const activeAlerts = alerts.filter(a => a.estado === 'Activa' || a.estado === 'Pendiente' || a.estado === 'Vencida' || a.estado === 'Programada');
-  const priorityCount = alerts.filter(a => a.prioridad === 'Prioritaria' && a.estado !== 'Atendida').length;
-  const pendingFollowups = alerts.filter(a => a.tipo === 'Seguimiento' && a.estado === 'Pendiente').length;
-  const upcomingActs = alerts.filter(a => a.tipo === 'Actividad' && a.estado === 'Programada').length;
-  const missedCitations = alerts.filter(a => a.tipo === 'Citación' && a.estado === 'Activa').length;
-  const pendingRoutes = alerts.filter(a => a.tipo === 'Ruta externa' && a.estado === 'Pendiente').length;
+  const activeAlerts = (alerts || []).filter(a => a.estado === 'Activa' || a.estado === 'Pendiente' || a.estado === 'Vencida' || a.estado === 'Programada');
+  const priorityCount = (alerts || []).filter(a => a.prioridad === 'Prioritaria' && a.estado !== 'Atendida').length;
+  const pendingFollowups = (alerts || []).filter(a => a.tipo === 'Seguimiento' && a.estado === 'Pendiente').length;
+  const upcomingActs = (alerts || []).filter(a => a.tipo === 'Actividad' && a.estado === 'Programada').length;
+  const missedCitations = (alerts || []).filter(a => a.tipo === 'Citación' && a.estado === 'Activa').length;
+  const pendingRoutes = (alerts || []).filter(a => a.tipo === 'Ruta externa' && a.estado === 'Pendiente').length;
 
-  const priorityList = alerts.filter(a => a.prioridad === 'Prioritaria' && a.estado !== 'Atendida').slice(0, 3);
+  const priorityList = (alerts || []).filter(a => a.prioridad === 'Prioritaria' && a.estado !== 'Atendida').slice(0, 3);
 
   const categories = ['Todas', 'Caso', 'Actividad', 'Seguimiento', 'Citación', 'Ruta externa', 'RutaSalud', 'Vencimiento', 'Informativa'];
 
   const filteredAlerts = useMemo(() => {
-    return alerts.filter(a => {
+    return (alerts || []).filter(a => {
       const matchesCategory = activeCategory === 'Todas' || a.tipo === activeCategory;
       const matchesSearch = !searchTerm || 
         a.titulo.toLowerCase().includes(searchTerm.toLowerCase()) || 

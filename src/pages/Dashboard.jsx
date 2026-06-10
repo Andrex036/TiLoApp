@@ -74,9 +74,9 @@ export default function HomeDashboard() {
 
 
   // Dynamic calculations for Alerts
-  const activeAlerts = alerts.filter(a => a.estado === 'Activa' || a.estado === 'Pendiente' || a.estado === 'Vencida' || a.estado === 'Programada').length;
-  const priorityAlerts = alerts.filter(a => a.prioridad === 'Prioritaria' && a.estado !== 'Atendida').length;
-  const pendingFollowups = alerts.filter(a => a.tipo === 'Seguimiento' && a.estado === 'Pendiente').length;
+  const activeAlerts = (alerts || []).filter(a => a.estado === 'Activa' || a.estado === 'Pendiente' || a.estado === 'Vencida' || a.estado === 'Programada').length;
+  const priorityAlerts = (alerts || []).filter(a => a.prioridad === 'Prioritaria' && a.estado !== 'Atendida').length;
+  const pendingFollowups = (alerts || []).filter(a => a.tipo === 'Seguimiento' && a.estado === 'Pendiente').length;
 
   // Activities for today & tomorrow
   const today = new Date().toISOString().split('T')[0];
@@ -84,8 +84,8 @@ export default function HomeDashboard() {
   tomorrowObj.setDate(tomorrowObj.getDate() + 1);
   const tomorrow = tomorrowObj.toISOString().split('T')[0];
 
-  const todayActivities = activities.filter(a => a.fecha === today && a.estado !== 'Cancelada');
-  const tomorrowActivities = activities.filter(a => a.fecha === tomorrow && a.estado !== 'Cancelada');
+  const todayActivities = (activities || []).filter(a => a.fecha === today && a.estado !== 'Cancelada');
+  const tomorrowActivities = (activities || []).filter(a => a.fecha === tomorrow && a.estado !== 'Cancelada');
   const upcomingActivities = todayActivities.length;
 
   return (
