@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { caseService } from '../services/caseService';
-import { subscribe } from '../utils/storage';
 
 export const useCases = () => {
   const [cases, setCases] = useState([]);
@@ -12,16 +11,15 @@ export const useCases = () => {
     };
 
     fetchCases();
-
-    // Subscribe to changes in local storage key
-    const unsubscribe = subscribe('tilo_cases', (newData) => {
-      if (newData) setCases(Array.isArray(newData) ? newData : []);
-    });
-
-    return () => unsubscribe();
   }, []);
 
-  const createCase = (caseData) => caseService.createCase(caseData);
+  const createCase = async (caseData) => {
+    const result = await caseService.createCase(caseData);
+    // Refresh cases list after successful creation
+    const updatedCases = await caseService.getCases();
+    setCases(Array.isArray(updatedCases) ? updatedCases : []);
+    return result;
+  };
   const updateCase = (id, updates) => caseService.updateCase(id, updates);
   const closeCase = (id) => caseService.closeCase(id);
   const addSeguimiento = (caseId, segData) => caseService.addSeguimiento(caseId, segData);

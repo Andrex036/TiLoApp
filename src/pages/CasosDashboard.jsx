@@ -224,7 +224,7 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
     })
   }, [cases])
 
-  const handleCreateCase = (e) => {
+  const handleCreateCase = async (e) => {
     e.preventDefault()
     const formData = new FormData(e.target)
     const identificacion = formData.get('identificacion') || '';
@@ -245,7 +245,8 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
     const caseData = {
       identificacion: identificacion,
       identificacionOrigen: formData.get('identificacionOrigen'),
-      estudiante: formData.get('estudiante'),
+      nombre: formData.get('estudiante'), // Map estudiante field to nombre for API
+      estudiante: formData.get('estudiante'), // Keep estudiante for UI compatibility
       genero: formData.get('genero'),
       grado: formData.get('grado'),
       sede: formData.get('sede'),
@@ -257,12 +258,31 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
     }
 
     if (editingCase) {
-      updateCase(editingCase.id, caseData)
-      setCreatedCase({ ...editingCase, ...caseData, isEdit: true })
-      setEditingCase(null)
+      try {
+        await updateCase(editingCase.id, caseData)
+        setCreatedCase({ ...editingCase, ...caseData, isEdit: true })
+        setEditingCase(null)
+      } catch (error) {
+        console.error('Error updating case:', error);
+        alert("Error al actualizar el caso. Por favor intenta de nuevo.");
+      }
     } else {
-      const savedCase = createCase(caseData)
-      setCreatedCase({ ...savedCase, isEdit: false })
+      try {
+        // Generate unique ID for new case
+        const newCaseData = {
+          ...caseData,
+          id: `case-${Date.now()}`, // Generate unique ID
+          codigo: `CASO-${Date.now().toString().slice(-6)}`, // Generate case code
+          tipoCaso: 'Nuevo',
+          estado: 'Activo',
+          seguimientos: []
+        }
+        const savedCase = await createCase(newCaseData)
+        setCreatedCase({ ...savedCase, isEdit: false })
+      } catch (error) {
+        console.error('Error creating case:', error);
+        alert("Error al crear el caso. Por favor intenta de nuevo.");
+      }
     }
   }
 
