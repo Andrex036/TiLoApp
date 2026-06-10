@@ -19,7 +19,12 @@ export default async function handler(req, res) {
   try {
     if (req.method === 'GET') {
       const result = await query('SELECT * FROM cases ORDER BY createdAt DESC');
-      res.status(200).json(result.rows);
+      // Merge data column fields with base fields for frontend
+      const cases = result.rows.map(c => ({
+        ...c,
+        ...(c.data || {})
+      }));
+      res.status(200).json(cases);
     } else if (req.method === 'POST') {
       const { id, identificacion, codigo, nombre, descripcion, tipoCaso, estado, fechaInicio, fechaFin, ...additionalData } = req.body;
 
