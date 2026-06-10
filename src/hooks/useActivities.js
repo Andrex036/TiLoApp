@@ -6,7 +6,6 @@ export const useActivities = () => {
   const [activities, setActivities] = useState([]);
 
   useEffect(() => {
-    activityService.initActivities();
     setActivities(activityService.getActivities());
 
     const unsubscribe = subscribe('tilo_activities', (newData) => {

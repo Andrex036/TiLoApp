@@ -6,8 +6,6 @@ export const useCases = () => {
   const [cases, setCases] = useState([]);
 
   useEffect(() => {
-    // Initialize data
-    caseService.initCases();
     setCases(caseService.getCases());
 
     // Subscribe to changes in local storage key
