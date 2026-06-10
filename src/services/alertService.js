@@ -9,7 +9,7 @@ export const alertService = {
     try {
       const res = await fetch(`${API_BASE}/alerts?caseId=${caseId}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
+      return await res.json();
     } catch (error) {
       console.error(`Failed to fetch alerts for case ${caseId}:`, error);
       return [];
@@ -27,7 +27,7 @@ export const alertService = {
         body: JSON.stringify(alertData)
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
+      return await res.json();
     } catch (error) {
       console.error('Failed to create alert:', error);
       throw error;
@@ -45,7 +45,7 @@ export const alertService = {
         body: JSON.stringify(alertData)
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
+      return await res.json();
     } catch (error) {
       console.error('Failed to update alert:', error);
       throw error;
@@ -63,7 +63,7 @@ export const alertService = {
         body: JSON.stringify({ id })
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
+      return await res.json();
     } catch (error) {
       console.error('Failed to delete alert:', error);
       throw error;

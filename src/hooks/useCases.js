@@ -6,11 +6,16 @@ export const useCases = () => {
   const [cases, setCases] = useState([]);
 
   useEffect(() => {
-    setCases(caseService.getCases());
+    const fetchCases = async () => {
+      const data = await caseService.getCases();
+      setCases(Array.isArray(data) ? data : []);
+    };
+
+    fetchCases();
 
     // Subscribe to changes in local storage key
     const unsubscribe = subscribe('tilo_cases', (newData) => {
-      if (newData) setCases(newData);
+      if (newData) setCases(Array.isArray(newData) ? newData : []);
     });
 
     return () => unsubscribe();

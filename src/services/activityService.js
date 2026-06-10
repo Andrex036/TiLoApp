@@ -9,7 +9,7 @@ export const activityService = {
     try {
       const res = await fetch(`${API_BASE}/activities?caseId=${caseId}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
+      return await res.json();
     } catch (error) {
       console.error(`Failed to fetch activities for case ${caseId}:`, error);
       return [];
@@ -27,7 +27,7 @@ export const activityService = {
         body: JSON.stringify(activityData)
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
+      return await res.json();
     } catch (error) {
       console.error('Failed to create activity:', error);
       throw error;
@@ -45,7 +45,7 @@ export const activityService = {
         body: JSON.stringify(activityData)
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
+      return await res.json();
     } catch (error) {
       console.error('Failed to update activity:', error);
       throw error;
@@ -63,7 +63,7 @@ export const activityService = {
         body: JSON.stringify({ id })
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
+      return await res.json();
     } catch (error) {
       console.error('Failed to delete activity:', error);
       throw error;

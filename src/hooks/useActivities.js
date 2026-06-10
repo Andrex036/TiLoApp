@@ -6,10 +6,15 @@ export const useActivities = () => {
   const [activities, setActivities] = useState([]);
 
   useEffect(() => {
-    setActivities(activityService.getActivities());
+    const fetchActivities = async () => {
+      const data = await activityService.getActivities();
+      setActivities(Array.isArray(data) ? data : []);
+    };
+
+    fetchActivities();
 
     const unsubscribe = subscribe('tilo_activities', (newData) => {
-      if (newData) setActivities(newData);
+      if (newData) setActivities(Array.isArray(newData) ? newData : []);
     });
 
     return () => unsubscribe();

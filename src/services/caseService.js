@@ -8,7 +8,7 @@ export const caseService = {
     try {
       const res = await fetch(`${API_BASE}/cases`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
+      return await res.json();
     } catch (error) {
       console.error('Failed to fetch cases:', error);
       return [];
@@ -26,7 +26,7 @@ export const caseService = {
         body: JSON.stringify(caseData)
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
+      return await res.json();
     } catch (error) {
       console.error('Failed to create case:', error);
       throw error;
@@ -44,7 +44,7 @@ export const caseService = {
         body: JSON.stringify(caseData)
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
+      return await res.json();
     } catch (error) {
       console.error('Failed to update case:', error);
       throw error;
@@ -62,7 +62,7 @@ export const caseService = {
         body: JSON.stringify({ id })
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
+      return await res.json();
     } catch (error) {
       console.error('Failed to delete case:', error);
       throw error;
@@ -80,7 +80,7 @@ export const caseService = {
         body: JSON.stringify(seguimientoData)
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
+      return await res.json();
     } catch (error) {
       console.error('Failed to add seguimiento:', error);
       throw error;
@@ -98,7 +98,7 @@ export const caseService = {
         body: JSON.stringify(updates)
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
+      return await res.json();
     } catch (error) {
       console.error('Failed to update seguimiento:', error);
       throw error;
@@ -115,7 +115,7 @@ export const caseService = {
         headers: { 'Content-Type': 'application/json' }
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
+      return await res.json();
     } catch (error) {
       console.error('Failed to delete seguimiento:', error);
       throw error;
