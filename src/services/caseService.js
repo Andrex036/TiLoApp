@@ -1,159 +1,136 @@
-import { saveData, readData } from '../utils/storage';
-import { initialCases } from '../data/mockCases';
-import { activityService } from './activityService';
-import { alertService } from './alertService';
-
-const CASES_KEY = 'tilo_cases';
+const API_BASE = '/api';
 
 export const caseService = {
   /**
-   * Initializes cases if storage is empty
+   * Get all cases from database
    */
-  initCases: () => {
-    const existing = readData(CASES_KEY);
-    if (!existing) {
-      saveData(CASES_KEY, initialCases);
+  getCases: async () => {
+    try {
+      const res = await fetch(`${API_BASE}/cases`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    } catch (error) {
+      console.error('Failed to fetch cases:', error);
+      return [];
     }
-  },
-
-  /**
-   * Get all cases
-   */
-  getCases: () => {
-    return readData(CASES_KEY) || [];
   },
 
   /**
    * Create a new case
    */
-  createCase: (caseData) => {
-    const cases = caseService.getCases();
-    const newId = caseData.identificacion || caseData.id || `case-${Date.now()}`;
-    const maxNum = cases.reduce((max, c) => {
-      const match = c.codigo?.match(/\d+/);
-      return match ? Math.max(max, parseInt(match[0])) : max;
-    }, 100);
-    const newCase = {
-      ...caseData,
-      id: newId,
-      identificacion: caseData.identificacion || newId,
-      codigo: `Caso #${maxNum + 1}`,
-      tipoCaso: 'Nuevo',
-      estado: 'Activo',
-      seguimientos: [],
-      citaciones: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    saveData(CASES_KEY, [...cases, newCase]);
-    return newCase;
+  createCase: async (caseData) => {
+    try {
+      const res = await fetch(`${API_BASE}/cases`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(caseData)
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    } catch (error) {
+      console.error('Failed to create case:', error);
+      throw error;
+    }
   },
 
   /**
    * Update an existing case
    */
-  updateCase: (id, updates) => {
-    const cases = caseService.getCases();
-    const index = cases.findIndex(c => c.id === id);
-    if (index !== -1) {
-      cases[index] = { ...cases[index], ...updates, updatedAt: new Date().toISOString() };
-      saveData(CASES_KEY, cases);
-      return cases[index];
+  updateCase: async (caseData) => {
+    try {
+      const res = await fetch(`${API_BASE}/cases`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(caseData)
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    } catch (error) {
+      console.error('Failed to update case:', error);
+      throw error;
     }
-    return null;
+  },
+
+  /**
+   * Delete a case
+   */
+  deleteCase: async (id) => {
+    try {
+      const res = await fetch(`${API_BASE}/cases`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    } catch (error) {
+      console.error('Failed to delete case:', error);
+      throw error;
+    }
   },
 
   /**
    * Add follow-up to a case
    */
-  addSeguimiento: (caseId, seguimientoData) => {
-    const cases = caseService.getCases();
-    const index = cases.findIndex(c => c.id === caseId);
-    if (index !== -1) {
-      const nuevoSeguimiento = {
-        ...seguimientoData,
-        id: `seg-${Date.now()}`,
-        caseId
-      };
-      cases[index].seguimientos.push(nuevoSeguimiento);
-      cases[index].updatedAt = new Date().toISOString();
-      saveData(CASES_KEY, cases);
-      return nuevoSeguimiento;
+  addSeguimiento: async (caseId, seguimientoData) => {
+    try {
+      const res = await fetch(`${API_BASE}/cases/${caseId}/seguimientos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(seguimientoData)
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    } catch (error) {
+      console.error('Failed to add seguimiento:', error);
+      throw error;
     }
-    return null;
   },
 
   /**
    * Update follow-up
    */
-  updateSeguimiento: (caseId, seguimientoId, updates) => {
-    const cases = caseService.getCases();
-    const caseIndex = cases.findIndex(c => c.id === caseId);
-    if (caseIndex !== -1) {
-      const segIndex = cases[caseIndex].seguimientos.findIndex(s => s.id === seguimientoId);
-      if (segIndex !== -1) {
-        cases[caseIndex].seguimientos[segIndex] = {
-          ...cases[caseIndex].seguimientos[segIndex],
-          ...updates,
-          editado: true,
-          ultimaEdicion: new Date().toISOString()
-        };
-        cases[caseIndex].updatedAt = new Date().toISOString();
-        saveData(CASES_KEY, cases);
-        return cases[caseIndex].seguimientos[segIndex];
-      }
+  updateSeguimiento: async (caseId, seguimientoId, updates) => {
+    try {
+      const res = await fetch(`${API_BASE}/cases/${caseId}/seguimientos/${seguimientoId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    } catch (error) {
+      console.error('Failed to update seguimiento:', error);
+      throw error;
     }
-    return null;
   },
 
   /**
    * Soft delete follow-up
    */
-  deleteSeguimiento: (caseId, seguimientoId) => {
-    const cases = caseService.getCases();
-    const caseIndex = cases.findIndex(c => c.id === caseId);
-    if (caseIndex !== -1) {
-      const segIndex = cases[caseIndex].seguimientos.findIndex(s => s.id === seguimientoId);
-      if (segIndex !== -1) {
-        cases[caseIndex].seguimientos[segIndex] = {
-          ...cases[caseIndex].seguimientos[segIndex],
-          eliminado: true,
-          fechaEliminacion: new Date().toISOString()
-        };
-        cases[caseIndex].updatedAt = new Date().toISOString();
-        saveData(CASES_KEY, cases);
-        return true;
-      }
+  deleteSeguimiento: async (caseId, seguimientoId) => {
+    try {
+      const res = await fetch(`${API_BASE}/cases/${caseId}/seguimientos/${seguimientoId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    } catch (error) {
+      console.error('Failed to delete seguimiento:', error);
+      throw error;
     }
-    return false;
   },
 
   /**
    * Close a case
    */
-  closeCase: (id) => {
-    return caseService.updateCase(id, { estado: 'Cerrado' });
-  },
-
-  /**
-   * Delete a case and all related activities and alerts
-   */
-  deleteCase: (id) => {
-    const cases = caseService.getCases();
-    if (!cases.some(c => c.id === id)) return false;
-
-    // Delete all activities related to this case
-    const activities = activityService.getActivities();
-    const filtered = activities.filter(a => a.caseId !== id);
-    saveData('tilo_activities', filtered);
-
-    // Delete all alerts related to this case
-    const alerts = alertService.getAlerts();
-    const filteredAlerts = alerts.filter(a => a.caseId !== id);
-    saveData('tilo_alerts', filteredAlerts);
-
-    // Delete the case
-    saveData(CASES_KEY, cases.filter(c => c.id !== id));
-    return true;
+  closeCase: async (id) => {
+    try {
+      return await caseService.updateCase({ id, estado: 'Cerrado' });
+    } catch (error) {
+      console.error('Failed to close case:', error);
+      throw error;
+    }
   }
 };
