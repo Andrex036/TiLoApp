@@ -1,33 +1,94 @@
 import { useState, useEffect } from 'react';
 import { activityService } from '../services/activityService';
-import { subscribe } from '../utils/storage';
 
-export const useActivities = () => {
-  const [activities, setActivities] = useState([]);
+let activitiesCache = [];
+let activitiesInFlight = null;
+const activitiesListeners = new Set();
 
-  useEffect(() => {
-    const fetchActivities = async () => {
-      const data = await activityService.getActivities();
-      setActivities(Array.isArray(data) ? data : []);
-    };
+const publishActivities = (data) => {
+  activitiesCache = Array.isArray(data) ? data : [];
+  activitiesListeners.forEach((listener) => listener(activitiesCache));
+};
 
-    fetchActivities();
+const readActivities = async ({ force = false } = {}) => {
+  if (!force && activitiesCache.length > 0) {
+    return activitiesCache;
+  }
 
-    const unsubscribe = subscribe('tilo_activities', (newData) => {
-      if (newData) setActivities(Array.isArray(newData) ? newData : []);
+  if (!force && activitiesInFlight) return activitiesInFlight;
+
+  activitiesInFlight = activityService.getActivities()
+    .then((data) => {
+      publishActivities(data);
+      return activitiesCache;
+    })
+    .finally(() => {
+      activitiesInFlight = null;
     });
 
-    return () => unsubscribe();
+  return activitiesInFlight;
+};
+
+export const useActivities = () => {
+  const [activities, setActivities] = useState(activitiesCache);
+
+  const refreshActivities = async ({ force = true } = {}) => {
+    const data = await readActivities({ force });
+    setActivities(data);
+    return data;
+  };
+
+  useEffect(() => {
+    activitiesListeners.add(setActivities);
+    readActivities();
+
+    return () => {
+      activitiesListeners.delete(setActivities);
+    };
   }, []);
 
-  const createActivity = (data) => activityService.createActivity(data);
-  const updateStatus = (id, status) => activityService.updateActivityStatus(id, status);
-  const deleteActivity = (id) => activityService.deleteActivity(id);
-  const deleteRecurrenceSeries = (recurrenceId) => activityService.deleteRecurrenceSeries(recurrenceId);
-  const updateActivity = (id, data) => activityService.updateActivity(id, data);
+  const createActivity = async (data) => {
+    const result = await activityService.createActivity(data);
+    publishActivities([result, ...activitiesCache.filter((activity) => activity.id !== result.id)]);
+    await refreshActivities({ force: true });
+    return result;
+  };
+
+  const updateStatus = async (id, status) => {
+    const result = await activityService.updateActivityStatus(id, status);
+    publishActivities(activitiesCache.map((activity) =>
+      activity.id === id ? { ...activity, ...result } : activity
+    ));
+    await refreshActivities({ force: true });
+    return result;
+  };
+
+  const deleteActivity = async (id) => {
+    const result = await activityService.deleteActivity(id);
+    publishActivities(activitiesCache.filter((activity) => activity.id !== id));
+    await refreshActivities({ force: true });
+    return result;
+  };
+
+  const deleteRecurrenceSeries = async (recurrenceId) => {
+    const result = await activityService.deleteRecurrenceSeries(recurrenceId);
+    publishActivities(activitiesCache.filter((activity) => activity.recurrenceId !== recurrenceId));
+    await refreshActivities({ force: true });
+    return result;
+  };
+
+  const updateActivity = async (id, data) => {
+    const result = await activityService.updateActivity(id, data);
+    publishActivities(activitiesCache.map((activity) =>
+      activity.id === id ? { ...activity, ...result } : activity
+    ));
+    await refreshActivities({ force: true });
+    return result;
+  };
 
   return {
     activities,
+    refreshActivities,
     createActivity,
     updateStatus,
     deleteActivity,

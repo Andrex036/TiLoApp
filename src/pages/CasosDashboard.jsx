@@ -58,6 +58,10 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
   const [gradoFilter, setGradoFilter] = useState('Todos')
   const [estadoFilter, setEstadoFilter] = useState('Todos')
   const [caseSource, setCaseSource] = useState('')
+  const [isSavingCase, setIsSavingCase] = useState(false)
+  const [isSavingOldFollowUp, setIsSavingOldFollowUp] = useState(false)
+  const [updatingCaseId, setUpdatingCaseId] = useState(null)
+  const [hasIdentification, setHasIdentification] = useState(true)
 
   useEffect(() => {
     const anyModalOpen = isModalOpen || isOldCaseModalOpen || !!selectedAlert || !!selectedStat || !!selectedSede;
@@ -226,6 +230,7 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
 
   const handleCreateCase = async (e) => {
     e.preventDefault()
+    if (isSavingCase) return
     const formData = new FormData(e.target)
     const identificacion = formData.get('identificacion') || '';
     const confirmIdentificacion = formData.get('confirmIdentificacion') || '';
@@ -237,8 +242,9 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
       return;
     }
 
-    if (!editingCase && !identificacion) {
-      alert("La identificación es requerida para crear un caso nuevo.");
+    // Si el usuario indicó que tiene identificación, validarla
+    if (!editingCase && hasIdentification && !identificacion) {
+      alert("Por favor ingresa el número de identificación o marca que no lo tienes.");
       return;
     }
 
@@ -255,8 +261,11 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
     }
 
     // Estructura principal para API (required fields)
+    // Si no tiene identificación, generar un ID temporal único
+    const finalIdentificacion = identificacion || `TEMP-${Date.now()}`;
+    
     const caseData = {
-      identificacion: identificacion,
+      identificacion: finalIdentificacion,
       nombre: nombre, // Map estudiante field to nombre for API
       descripcion: formData.get('observaciones'), // Map observaciones to descripcion for API
       tipoCaso: 'Nuevo',
@@ -275,21 +284,28 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
       nivelRiesgo: formData.get('nivelRiesgo'),
       docenteRemitente: formData.get('docenteRemitente') || '',
       observaciones: formData.get('observaciones'),
+      sinIdentificacion: !identificacion, // Marcar si no tiene identificación
     }
 
+    setIsSavingCase(true)
+    try {
     if (editingCase) {
       try {
         const updateData = {
           ...additionalData,
-          identificacion: identificacion,
+          identificacion: identificacion || editingCase.identificacion, // Mantener la identificación existente si no se proporciona una nueva
           nombre: nombre,
           descripcion: formData.get('observaciones'),
-          id: editingCase.id
+          id: editingCase.id,
+          sinIdentificacion: !identificacion && !editingCase.identificacion.startsWith('TEMP-') ? editingCase.sinIdentificacion : !identificacion
           // Note: tipoCaso and estado are NOT updated when editing a case
         }
         await updateCase(editingCase.id, updateData)
         setCreatedCase({ ...editingCase, ...updateData, isEdit: true })
         setEditingCase(null)
+        setIsModalOpen(false)
+        setCreatedCase(null)
+        setCaseSource('')
       } catch (error) {
         console.error('Error updating case:', error);
         alert("Error al actualizar el caso. Por favor intenta de nuevo.");
@@ -306,10 +322,16 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
         }
         const savedCase = await createCase(newCaseData)
         setCreatedCase({ ...savedCase, isEdit: false })
+        setIsModalOpen(false)
+        setCreatedCase(null)
+        setCaseSource('')
       } catch (error) {
         console.error('Error creating case:', error);
         alert("Error al crear el caso. Por favor intenta de nuevo.");
       }
+    }
+    } finally {
+      setIsSavingCase(false)
     }
   }
 
@@ -318,6 +340,7 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
     setCreatedCase(null)
     setEditingCase(null)
     setCaseSource('')
+    setHasIdentification(true) // Reset to default
   }
 
   const handleSearchCase = (e) => {
@@ -343,10 +366,13 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
     }
   }
 
-  const handleOldCaseFollowUp = (e) => {
+  const handleOldCaseFollowUp = async (e) => {
     e.preventDefault()
+    if (isSavingOldFollowUp) return
+    setIsSavingOldFollowUp(true)
+    try {
     const formData = new FormData(e.target)
-    addSeguimiento(foundCase.id, {
+    await addSeguimiento(foundCase.id, {
       fecha: formData.get('fecha'),
       tipoSeguimiento: formData.get('tipoSeguimiento'),
       descripcion: formData.get('descripcion'),
@@ -358,6 +384,9 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
     setFoundCase(null)
     setSearchQuery('')
     alert("Seguimiento registrado exitosamente.")
+    } finally {
+      setIsSavingOldFollowUp(false)
+    }
   }
 
   const handleCloseOldCaseModal = () => {
@@ -367,10 +396,16 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
     setSearchQuery('')
   }
 
-  const handleUpdateCaseStatus = (id, updates) => {
-    updateCase(id, updates)
+  const handleUpdateCaseStatus = async (id, updates) => {
+    if (updatingCaseId) return
+    setUpdatingCaseId(id)
+    try {
+    await updateCase(id, updates)
     setActiveMenuId(null)
     alert("Caso actualizado correctamente")
+    } finally {
+      setUpdatingCaseId(null)
+    }
   }
 
   const caseList = filteredCases.length === 0 ? (
@@ -413,7 +448,8 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
               <div className="fixed inset-0 z-20" onClick={() => setActiveMenuId(null)}></div>
               <div className="absolute right-0 mt-2 w-52 bg-white rounded-2xl shadow-xl border border-slate-100 z-30 py-2 animate-[fadeIn_0.2s_ease-out]">
                 <button
-                  onClick={() => { 
+                  disabled={updatingCaseId === c.id}
+                  onClick={() => {
                     setEditingCase(c); 
                     setCaseSource(c.identificacionOrigen || '');
                     setIsModalOpen(true); 
@@ -425,9 +461,10 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
                 </button>
                 <button
                   onClick={() => handleUpdateCaseStatus(c.id, { nivelRiesgo: 'Prioritario', estado: 'En seguimiento' })}
-                  className="w-full px-4 py-2.5 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-3"
+                  disabled={updatingCaseId === c.id}
+                  className="w-full px-4 py-2.5 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-3"
                 >
-                  <TrendingUp size={16} className="text-orange-500" /> Priorizar Caso
+                  <TrendingUp size={16} className="text-orange-500" /> {updatingCaseId === c.id ? 'Actualizando...' : 'Priorizar Caso'}
                 </button>
 
                 <button
@@ -436,7 +473,7 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
                       handleUpdateCaseStatus(c.id, { estado: 'Cerrado' })
                     }
                   }}
-                  className="w-full px-4 py-2.5 text-left text-xs font-bold text-orange-600 hover:bg-orange-50 flex items-center gap-3"
+                  className="w-full px-4 py-2.5 text-left text-xs font-bold text-orange-600 hover:bg-orange-50 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-3"
                 >
                   <XCircle size={16} /> Cerrar Caso
                 </button>
@@ -803,18 +840,75 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
 
                 <form onSubmit={handleCreateCase} className="p-5 overflow-y-auto max-h-[75vh]">
                   <div className="space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">Identificación *</label>
-                        <input required name="identificacion" type="number" defaultValue={editingCase?.identificacion?.toString().startsWith('case-') ? '' : editingCase?.identificacion} placeholder="Número de documento" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
-                      </div>
-                      {!editingCase && (
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1">Confirmar Identificación</label>
-                          <input name="confirmIdentificacion" type="number" placeholder="Repite para verificar" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
+                    {/* Toggle para indicar si tiene o no identificación */}
+                    {!editingCase && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white">
+                              <FileText size={16} />
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold text-slate-800">¿Tienes el número de identificación del estudiante?</p>
+                              <p className="text-[10px] text-slate-600">Puedes agregarlo después si no lo tienes ahora</p>
+                            </div>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input 
+                              type="checkbox" 
+                              checked={hasIdentification}
+                              onChange={(e) => setHasIdentification(e.target.checked)}
+                              className="sr-only peer" 
+                            />
+                            <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                          </label>
                         </div>
-                      )}
-                    </div>
+                        <p className="text-[10px] text-slate-600 italic ml-10">
+                          {hasIdentification ? '✓ Ingresaré la identificación ahora' : '⚠ No tengo la identificación, la agregaré después'}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Campos de identificación - solo si tiene identificación o está editando */}
+                    {(hasIdentification || editingCase) && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1">
+                            Identificación {editingCase && editingCase.sinIdentificacion ? '(Opcional)' : '*'}
+                          </label>
+                          <input 
+                            required={!editingCase && hasIdentification} 
+                            name="identificacion" 
+                            type="number" 
+                            defaultValue={editingCase?.identificacion?.toString().startsWith('TEMP-') ? '' : editingCase?.identificacion} 
+                            placeholder="Número de documento" 
+                            className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" 
+                          />
+                        </div>
+                        {!editingCase && hasIdentification && (
+                          <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1">Confirmar Identificación</label>
+                            <input 
+                              name="confirmIdentificacion" 
+                              type="number" 
+                              placeholder="Repite para verificar" 
+                              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" 
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Mensaje informativo cuando está editando un caso sin identificación */}
+                    {editingCase && editingCase.sinIdentificacion && (
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 flex items-start gap-2">
+                        <AlertTriangle size={16} className="text-yellow-600 mt-0.5 shrink-0" />
+                        <div>
+                          <p className="text-xs font-bold text-yellow-800">Caso sin identificación</p>
+                          <p className="text-[10px] text-yellow-700">Este caso fue creado sin número de identificación. Puedes agregarlo ahora si ya lo tienes.</p>
+                        </div>
+                      </div>
+                    )}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1">Nombre *</label>
@@ -922,9 +1016,9 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
                   </div>
 
                   <div className="p-5 border-t border-slate-100 bg-slate-50/50 flex gap-3 shrink-0">
-                    <button type="button" onClick={handleCloseModal} className="flex-1 py-3 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">Cancelar</button>
-                    <button type="submit" className="flex-1 py-3 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-sm shadow-blue-600/30">
-                      {editingCase ? 'Guardar Cambios' : 'Registrar Caso'}
+                    <button type="button" onClick={handleCloseModal} disabled={isSavingCase} className="flex-1 py-3 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 disabled:opacity-60 disabled:cursor-not-allowed rounded-xl transition-colors">Cancelar</button>
+                    <button type="submit" disabled={isSavingCase} className="flex-1 py-3 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed rounded-xl transition-colors shadow-sm shadow-blue-600/30">
+                      {isSavingCase ? 'Guardando...' : editingCase ? 'Guardar Cambios' : 'Registrar Caso'}
                     </button>
                   </div>
                 </form>
@@ -1034,8 +1128,8 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
                   </div>
 
                   <div className="flex gap-3 pt-2 mt-4">
-                    <button type="button" onClick={handleCloseOldCaseModal} className="flex-1 py-3 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">Cancelar</button>
-                    <button type="submit" className="flex-1 py-3 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition-colors shadow-sm shadow-purple-600/30">Guardar Seguimiento</button>
+                    <button type="button" onClick={handleCloseOldCaseModal} disabled={isSavingOldFollowUp} className="flex-1 py-3 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 disabled:opacity-60 disabled:cursor-not-allowed rounded-xl transition-colors">Cancelar</button>
+                    <button type="submit" disabled={isSavingOldFollowUp} className="flex-1 py-3 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 disabled:bg-slate-300 disabled:cursor-not-allowed rounded-xl transition-colors shadow-sm shadow-purple-600/30">{isSavingOldFollowUp ? 'Guardando...' : 'Guardar Seguimiento'}</button>
                   </div>
                 </form>
               )}

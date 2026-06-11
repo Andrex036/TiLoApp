@@ -1,33 +1,81 @@
 import { useState, useEffect } from 'react';
 import { alertService } from '../services/alertService';
-import { subscribe } from '../utils/storage';
 
-export const useAlerts = () => {
-  const [alerts, setAlerts] = useState([]);
+let alertsCache = [];
+let alertsInFlight = null;
+const alertsListeners = new Set();
 
-  useEffect(() => {
-    const fetchAlerts = async () => {
-      const data = await alertService.getAlerts();
-      setAlerts(Array.isArray(data) ? data : []);
-    };
+const publishAlerts = (data) => {
+  alertsCache = Array.isArray(data) ? data : [];
+  alertsListeners.forEach((listener) => listener(alertsCache));
+};
 
-    fetchAlerts();
+const readAlerts = async ({ force = false, autogen = false } = {}) => {
+  if (!force && alertsCache.length > 0) {
+    return alertsCache;
+  }
 
-    const unsubscribe = subscribe('tilo_alerts', (newData) => {
-      if (newData) setAlerts(Array.isArray(newData) ? newData : []);
+  if (!force && alertsInFlight) return alertsInFlight;
+
+  alertsInFlight = alertService.getAlerts(undefined, { autogen })
+    .then((data) => {
+      publishAlerts(data);
+      return alertsCache;
+    })
+    .finally(() => {
+      alertsInFlight = null;
     });
 
+  return alertsInFlight;
+};
+
+export const useAlerts = () => {
+  const [alerts, setAlerts] = useState(alertsCache);
+
+  const refreshAlerts = async ({ force = true, autogen = false } = {}) => {
+    const data = await readAlerts({ force, autogen });
+    setAlerts(data);
+    return data;
+  };
+
+  useEffect(() => {
+    alertsListeners.add(setAlerts);
+    readAlerts({ autogen: true });
+
     return () => {
-      unsubscribe();
+      alertsListeners.delete(setAlerts);
     };
   }, []);
 
-  const markAsAttended = (id) => alertService.markAsAttended(id);
-  const triggerAlertGeneration = () => alertService.generateAlerts();
-  const createAlert = (alertData) => alertService.createAlert(alertData);
+  const markAsAttended = async (id) => {
+    publishAlerts(alertsCache.map((alert) =>
+      alert.id === id ? { ...alert, estado: 'Atendida', activo: false } : alert
+    ));
+
+    try {
+      const result = await alertService.markAsAttended(id);
+      await refreshAlerts({ force: true });
+      return result;
+    } catch (error) {
+      await refreshAlerts({ force: true });
+      throw error;
+    }
+  };
+
+  const triggerAlertGeneration = async () => {
+    return refreshAlerts({ force: true, autogen: true });
+  };
+
+  const createAlert = async (alertData) => {
+    const result = await alertService.createAlert(alertData);
+    publishAlerts([result, ...alertsCache.filter((alert) => alert.id !== result.id)]);
+    await refreshAlerts({ force: true });
+    return result;
+  };
 
   return {
     alerts,
+    refreshAlerts,
     markAsAttended,
     triggerAlertGeneration,
     createAlert

@@ -1,14 +1,36 @@
 // src/services/alertService.js
 const API_BASE = '/api';
 
+const parseError = async (res) => {
+  const fallback = `HTTP ${res.status}`;
+  try {
+    const payload = await res.json();
+    return payload.error || payload.message || fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const buildAlertsUrl = (caseId, options = {}) => {
+  const params = new URLSearchParams();
+
+  if (caseId !== undefined && caseId !== null && caseId !== '') {
+    params.set('caseId', String(caseId));
+  }
+
+  if (options.autogen) {
+    params.set('autogen', '1');
+  }
+
+  const query = params.toString();
+  return query ? `${API_BASE}/alerts?${query}` : `${API_BASE}/alerts`;
+};
+
 export const alertService = {
-  /**
-   * Get alerts for a case
-   */
-  getAlerts: async (caseId) => {
+  getAlerts: async (caseId, options = {}) => {
     try {
-      const res = await fetch(`${API_BASE}/alerts?caseId=${caseId}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const res = await fetch(buildAlertsUrl(caseId, options));
+      if (!res.ok) throw new Error(await parseError(res));
       return await res.json();
     } catch (error) {
       console.error(`Failed to fetch alerts for case ${caseId}:`, error);
@@ -16,9 +38,6 @@ export const alertService = {
     }
   },
 
-  /**
-   * Create a new alert
-   */
   createAlert: async (alertData) => {
     try {
       const res = await fetch(`${API_BASE}/alerts`, {
@@ -26,7 +45,7 @@ export const alertService = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(alertData)
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(await parseError(res));
       return await res.json();
     } catch (error) {
       console.error('Failed to create alert:', error);
@@ -34,9 +53,6 @@ export const alertService = {
     }
   },
 
-  /**
-   * Update an alert
-   */
   updateAlert: async (alertData) => {
     try {
       const res = await fetch(`${API_BASE}/alerts`, {
@@ -44,7 +60,7 @@ export const alertService = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(alertData)
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(await parseError(res));
       return await res.json();
     } catch (error) {
       console.error('Failed to update alert:', error);
@@ -52,9 +68,6 @@ export const alertService = {
     }
   },
 
-  /**
-   * Delete an alert
-   */
   deleteAlert: async (id) => {
     try {
       const res = await fetch(`${API_BASE}/alerts`, {
@@ -62,11 +75,19 @@ export const alertService = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id })
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(await parseError(res));
       return await res.json();
     } catch (error) {
       console.error('Failed to delete alert:', error);
       throw error;
     }
+  },
+
+  markAsAttended: async (id) => {
+    return alertService.updateAlert({ id, estado: 'Atendida', activo: false });
+  },
+
+  generateAlerts: async () => {
+    return alertService.getAlerts(undefined, { autogen: true });
   }
 };

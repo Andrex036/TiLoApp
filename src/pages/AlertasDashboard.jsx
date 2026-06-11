@@ -57,8 +57,8 @@ export default function AlertasDashboard({ onNavigate }) {
     });
   }, [alerts, activeCategory, searchTerm, priorityFilter, sedeFilter, statusFilter]);
 
-  const handleMarkAsAttended = (id) => {
-    markAsAttended(id);
+  const handleMarkAsAttended = async (id) => {
+    await markAsAttended(id);
   };
 
   const getPriorityColor = (priority) => {

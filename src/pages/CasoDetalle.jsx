@@ -7,7 +7,7 @@ import { useAlerts } from '../hooks/useAlerts'
 export default function CasoDetalle({ caseId, onBack, onEdit }) {
   const { cases, addSeguimiento, updateCase, updateSeguimiento, deleteSeguimiento, closeCase } = useCases()
   const { activities, createActivity, updateActivity, deleteActivity } = useActivities()
-  const { alerts, markAsAttended, createAlert } = useAlerts()
+  const { alerts, markAsAttended, createAlert, triggerAlertGeneration } = useAlerts()
   const [activeTab, setActiveTab] = useState('seguimientos') // seguimientos, info
   const [showSeguimientoModal, setShowSeguimientoModal] = useState(false)
   const [showCitaModal, setShowCitaModal] = useState(false)
@@ -20,24 +20,69 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
   const [saludAlertToConfirm, setSaludAlertToConfirm] = useState(null)
   const [asistioSelection, setAsistioSelection] = useState('')
   const [showRescheduleForm, setShowRescheduleForm] = useState(false)
+  const [submittingCitaResult, setSubmittingCitaResult] = useState(false)
+  const [submittingAction, setSubmittingAction] = useState('')
 
   const caseData = cases.find(c => c.id === caseId)
+  const activeSeguimientos = (caseData?.seguimientos || []).filter((seg) => !seg?.eliminado)
+  const hasSeguimientoType = (requiredType) => activeSeguimientos.some((seg) => seg?.tipoSeguimiento === requiredType)
+  const isCaseAlertSatisfied = (alert) => {
+    if (alert?.tipo !== 'Seguimiento') return false
+    const sourceKey = alert.sourceKey || ''
+
+    if (sourceKey.includes('auto-case-no-followup')) {
+      return activeSeguimientos.length > 0
+    }
+
+    if (sourceKey.includes('padre-de-familia') || alert.titulo?.includes('Padre de familia')) {
+      return hasSeguimientoType('Padre de familia')
+    }
+
+    if (sourceKey.includes('docente') || alert.titulo?.includes('Docente')) {
+      return hasSeguimientoType('Docente')
+    }
+
+    if (sourceKey.includes('estudiante') || alert.titulo?.includes('Estudiante')) {
+      return hasSeguimientoType('Estudiante')
+    }
+
+    return false
+  }
+  const visibleSeguimientoAlerts = (alerts || []).filter((alert) =>
+    alert.caseId === caseId
+    && alert.tipo === 'Seguimiento'
+    && alert.estado !== 'Atendida'
+    && !isCaseAlertSatisfied(alert)
+  )
+  const visibleRutaSaludAlerts = (alerts || []).filter((alert) =>
+    alert.caseId === caseId
+    && alert.tipo === 'RutaSalud'
+    && alert.estado !== 'Atendida'
+  )
+
+  const refreshCaseAlerts = async () => {
+    try {
+      await triggerAlertGeneration()
+    } catch (error) {
+      console.error('Error refreshing case alerts:', error)
+    }
+  }
 
   const getLinkedCitaActivity = (seguimientoId) => {
     return activities.find(act => act.caseId === caseId && act.citaSeguimientoId === seguimientoId) || null
   }
 
-  const syncCitaActivity = (seguimiento, { action = 'update', result } = {}) => {
+  const syncCitaActivity = async (seguimiento, { action = 'update', result } = {}) => {
     const linkedActivity = getLinkedCitaActivity(seguimiento?.id)
     if (!linkedActivity) return
 
     if (action === 'delete') {
-      deleteActivity(linkedActivity.id)
+      await deleteActivity(linkedActivity.id)
       return
     }
 
     if (action === 'restore') {
-      updateActivity(linkedActivity.id, {
+      await updateActivity(linkedActivity.id, {
         estado: 'Programada',
         color: 'blue'
       })
@@ -46,14 +91,14 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
 
     if (action === 'result') {
       const nextStatus = result?.asistio ? 'Realizada' : 'No asistió'
-      updateActivity(linkedActivity.id, {
+      await updateActivity(linkedActivity.id, {
         estado: nextStatus,
         color: result?.asistio ? 'green' : 'slate'
       })
       return
     }
 
-    updateActivity(linkedActivity.id, {
+    await updateActivity(linkedActivity.id, {
       fecha: seguimiento.fecha,
       descripcion: seguimiento.descripcion,
       estado: linkedActivity.estado === 'Cancelada' ? 'Cancelada' : linkedActivity.estado,
@@ -79,8 +124,11 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
     )
   }
 
-  const handleAddSeguimiento = (e) => {
+  const handleAddSeguimiento = async (e) => {
     e.preventDefault()
+    if (submittingAction) return
+    setSubmittingAction('seguimiento')
+    try {
     const formData = new FormData(e.target)
     
     if (editingSeguimiento) {
@@ -94,16 +142,16 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
       } else {
         updates.hasSoporte = formData.get('hasSoporte') === 'on'
       }
-      updateSeguimiento(caseId, editingSeguimiento.id, updates)
+      await updateSeguimiento(caseId, editingSeguimiento.id, updates)
       if (editingSeguimiento.esCita) {
-        syncCitaActivity({
+        await syncCitaActivity({
           ...editingSeguimiento,
           ...updates
         })
       }
       setEditingSeguimiento(null)
     } else {
-      addSeguimiento(caseId, {
+      await addSeguimiento(caseId, {
         fecha: formData.get('fecha'),
         tipoSeguimiento: formData.get('tipoSeguimiento'),
         descripcion: formData.get('descripcion'),
@@ -112,31 +160,38 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
       })
     }
     setShowSeguimientoModal(false)
+    await refreshCaseAlerts()
+    } finally {
+      setSubmittingAction('')
+    }
   }
 
   const handleDeleteSeguimiento = (segId) => {
     if (confirm('¿Estás seguro de eliminar este seguimiento? Quedará un registro de la eliminación.')) {
+      void (async () => {
       const targetSeg = caseData.seguimientos.find(s => s.id === segId);
       if (targetSeg?.esCita) {
         const linkedResult = targetSeg.citaResultadoId
           ? caseData.seguimientos.find(s => s.id === targetSeg.citaResultadoId)
           : null
         if (linkedResult) {
-          deleteSeguimiento(caseId, linkedResult.id)
+          await deleteSeguimiento(caseId, linkedResult.id)
         }
-        syncCitaActivity(targetSeg, { action: 'delete' })
+        await syncCitaActivity(targetSeg, { action: 'delete' })
       }
       if (targetSeg?.esCitaResultado) {
         const originalCita = caseData.seguimientos.find(s => s.citaResultadoId === segId);
         if (originalCita) {
-          updateSeguimiento(caseId, originalCita.id, {
+          await updateSeguimiento(caseId, originalCita.id, {
             citaConfirmada: false,
             citaResultadoId: null
           });
-          syncCitaActivity(originalCita, { action: 'restore' })
+          await syncCitaActivity(originalCita, { action: 'restore' })
         }
       }
-      deleteSeguimiento(caseId, segId)
+      await deleteSeguimiento(caseId, segId)
+      await refreshCaseAlerts()
+      })()
     }
   }
 
@@ -151,8 +206,11 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
     }
   }
 
-  const handleAddCita = (e) => {
+  const handleAddCita = async (e) => {
     e.preventDefault()
+    if (submittingAction) return
+    setSubmittingAction('cita')
+    try {
     const formData = new FormData(e.target)
     const horaInicio = formData.get('horaInicio')
     const horaFin = formData.get('horaFin')
@@ -160,7 +218,7 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
       alert('La hora de fin debe ser posterior a la hora de inicio.')
       return
     }
-    const citaSeguimiento = addSeguimiento(caseId, {
+    const citaSeguimiento = await addSeguimiento(caseId, {
       fecha: new Date().toISOString().split('T')[0],
       tipoSeguimiento: `Cita: ${formData.get('tipoCita')}`,
       descripcion: `Agendada para: ${formData.get('fecha')} de ${formData.get('horaInicio')} a ${formData.get('horaFin')}\nDetalles: ${formData.get('descripcion') || 'N/A'}`,
@@ -171,7 +229,7 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
       citaResultadoId: null
     })
 
-    createActivity({
+    await createActivity({
       titulo: `Cita: ${caseData.estudiante}`,
       fecha: formData.get('fecha'),
       horaInicio: formData.get('horaInicio'),
@@ -187,11 +245,19 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
     })
 
     setShowCitaModal(false)
+    await refreshCaseAlerts()
     alert("Cita agendada exitosamente. Podrás verla en el módulo de Actividades.")
+    } finally {
+      setSubmittingAction('')
+    }
   }
 
-  const handleConfirmarCita = (e) => {
+  const handleConfirmarCita = async (e) => {
     e.preventDefault()
+    if (submittingCitaResult) return
+    setSubmittingCitaResult(true)
+
+    try {
     const formData = new FormData(e.target)
     const asistio = formData.get('asistio')
 
@@ -208,15 +274,21 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
       const motivoCancelacion = formData.get('motivoCancelacion')?.trim() || 'Sin especificar'
 
       // 1. Crear seguimiento de cancelación
-      addSeguimiento(caseId, {
+      await addSeguimiento(caseId, {
         fecha: new Date().toISOString().split('T')[0],
         tipoSeguimiento: 'Cita cancelada',
         descripcion: `${citaParaConfirmar.tipoSeguimiento}\nMotivo: ${motivoCancelacion}\nReprogramada para: ${newFecha} de ${horaInicio} a ${horaFin}`,
         responsable: 'Orientación Escolar'
       })
 
+      await updateSeguimiento(caseId, citaParaConfirmar.id, {
+        citaConfirmada: true,
+        citaCancelada: true,
+        citaResultadoId: null
+      })
+
       // 2. Crear nueva cita con nueva fecha/hora
-      const newCitaSeguimiento = addSeguimiento(caseId, {
+      const newCitaSeguimiento = await addSeguimiento(caseId, {
         fecha: new Date().toISOString().split('T')[0],
         tipoSeguimiento: citaParaConfirmar.tipoSeguimiento,
         descripcion: `Agendada para: ${newFecha} de ${horaInicio} a ${horaFin}\nDetalles: Reprogramación\nMotivo cancelación anterior: ${motivoCancelacion}`,
@@ -229,7 +301,7 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
 
       // 3. Crear nueva actividad para la nueva cita
       const tipoCita = citaParaConfirmar.tipoSeguimiento.replace('Cita: ', '')
-      createActivity({
+      await createActivity({
         titulo: `Cita: ${caseData.estudiante} (Reprogramada)`,
         fecha: newFecha,
         horaInicio: horaInicio,
@@ -247,13 +319,14 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
       // 4. Eliminar la actividad antigua
       const linkedActivity = getLinkedCitaActivity(citaParaConfirmar.id)
       if (linkedActivity) {
-        deleteActivity(linkedActivity.id)
+        await deleteActivity(linkedActivity.id)
       }
 
       setShowConfirmCitaModal(false)
       setCitaParaConfirmar(null)
       setEditingSeguimiento(null)
       setAsistioSelection('')
+      await refreshCaseAlerts()
       alert('Cita cancelada y reprogramada exitosamente.')
       return
     }
@@ -269,19 +342,24 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
     ].filter(Boolean).join('\n')
 
     if (editingSeguimiento) {
-      updateSeguimiento(caseId, editingSeguimiento.id, {
+      await updateSeguimiento(caseId, editingSeguimiento.id, {
         descripcion: lineas,
         observaciones,
         asistio: asistio === 'si',
         trajoSoporte: citaParaConfirmar.requiereSoporte ? trajoSoporte : null
       })
-      syncCitaActivity(citaParaConfirmar, {
+      await updateSeguimiento(caseId, citaParaConfirmar.id, {
+        citaConfirmada: true,
+        citaCancelada: false,
+        citaResultadoId: editingSeguimiento.id
+      })
+      await syncCitaActivity(citaParaConfirmar, {
         action: 'result',
         result: { asistio: asistio === 'si' }
       })
       setEditingSeguimiento(null)
     } else {
-      const resultSeg = addSeguimiento(caseId, {
+      const resultSeg = await addSeguimiento(caseId, {
         fecha: new Date().toISOString().split('T')[0],
         tipoSeguimiento: 'Resultado de cita',
         descripcion: lineas,
@@ -292,11 +370,12 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
         trajoSoporte: citaParaConfirmar.requiereSoporte ? trajoSoporte : null
       })
 
-      updateSeguimiento(caseId, citaParaConfirmar.id, {
+      await updateSeguimiento(caseId, citaParaConfirmar.id, {
         citaConfirmada: true,
+        citaCancelada: false,
         citaResultadoId: resultSeg?.id ?? null
       })
-      syncCitaActivity(citaParaConfirmar, {
+      await syncCitaActivity(citaParaConfirmar, {
         action: 'result',
         result: { asistio: asistio === 'si' }
       })
@@ -305,16 +384,26 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
     setShowConfirmCitaModal(false)
     setCitaParaConfirmar(null)
     setAsistioSelection('')
+    await refreshCaseAlerts()
+    } catch (error) {
+      console.error('Error confirming cita:', error)
+      alert('No se pudo confirmar la asistencia. Intenta nuevamente.')
+    } finally {
+      setSubmittingCitaResult(false)
+    }
   }
 
-  const handleAddRuta = (e) => {
+  const handleAddRuta = async (e) => {
     e.preventDefault()
+    if (submittingAction) return
+    setSubmittingAction('ruta')
+    try {
     const formData = new FormData(e.target)
     const entidad = formData.get('entidad')
     const today = new Date().toISOString().split('T')[0]
 
     // 1. Add follow-up record
-    addSeguimiento(caseId, {
+    await addSeguimiento(caseId, {
       fecha: today,
       tipoSeguimiento: `Activación Ruta: ${entidad}`,
       descripcion: `Entidad: ${entidad}\nMotivo: ${formData.get('motivo')}\nObservaciones: ${formData.get('descripcion')}`,
@@ -327,14 +416,14 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
       : [];
 
     if (!currentRoutes.includes(entidad)) {
-      updateCase(caseId, {
+      await updateCase(caseId, {
         rutaActivada: [...currentRoutes, entidad]
       });
     }
 
     // 3. Si es Sector Salud, crear alerta prioritaria para verificar soporte de atención
     if (entidad === 'Sector Salud (EPS/Hospital)') {
-      createAlert({
+      await createAlert({
         tipo: 'RutaSalud',
         titulo: 'Pendiente: soporte de atención en salud',
         descripcion: `Ruta activada con Sector Salud para ${caseData.estudiante} (${caseData.codigo}). Motivo: ${formData.get('motivo')}. Verificar recepción del documento de soporte de atención médica.`,
@@ -352,23 +441,36 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
     }
 
     setShowRutaModal(false)
+    await refreshCaseAlerts()
     alert(`Ruta con ${entidad} activada exitosamente.`)
+    } finally {
+      setSubmittingAction('')
+    }
   }
 
-  const handleUpdateStatus = (updates) => {
-    updateCase(caseId, updates)
+  const handleUpdateStatus = async (updates) => {
+    if (submittingAction) return
+    setSubmittingAction('status')
+    try {
+    await updateCase(caseId, updates)
     setShowConfigMenu(false)
     alert("Caso actualizado correctamente")
+    } finally {
+      setSubmittingAction('')
+    }
   }
 
-  const handleConfirmSoporteSalud = (e) => {
+  const handleConfirmSoporteSalud = async (e) => {
     e.preventDefault()
+    if (submittingAction) return
+    setSubmittingAction('soporte')
+    try {
     const formData = new FormData(e.target)
     const recibiDocumento = formData.get('recibiDocumento') === 'si'
     const observaciones = formData.get('observaciones')?.trim()
 
     // Registrar seguimiento de la verificación
-    addSeguimiento(caseId, {
+    await addSeguimiento(caseId, {
       fecha: new Date().toISOString().split('T')[0],
       tipoSeguimiento: 'Externo (Salud/ICBF)',
       descripcion: [
@@ -382,11 +484,15 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
 
     // Si se recibió, marcar la alerta como atendida
     if (recibiDocumento) {
-      markAsAttended(saludAlertToConfirm.id)
+      await markAsAttended(saludAlertToConfirm.id)
     }
 
     setShowConfirmSoporteModal(false)
     setSaludAlertToConfirm(null)
+    await refreshCaseAlerts()
+    } finally {
+      setSubmittingAction('')
+    }
   }
 
   const getObservacionesVal = (seg) => {
@@ -492,13 +598,13 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
         </div>
 
         {/* Alertas de seguimiento del caso */}
-        {(alerts || []).filter(a => a.caseId === caseId && a.tipo === 'Seguimiento' && a.estado !== 'Atendida').length > 0 && (
+        {visibleSeguimientoAlerts.length > 0 && (
           <div className="bg-orange-50 border border-orange-200 rounded-2xl p-4 shadow-sm">
             <h2 className="text-sm font-bold text-orange-800 mb-3 flex items-center gap-2">
               <AlertTriangle size={18} className="text-orange-600" /> Alertas de seguimiento
             </h2>
             <div className="space-y-2">
-              {(alerts || []).filter(a => a.caseId === caseId && a.tipo === 'Seguimiento' && a.estado !== 'Atendida').map(alert => (
+              {visibleSeguimientoAlerts.map(alert => (
                 <div key={alert.id} className="bg-white/60 border border-orange-100 rounded-xl p-3 flex justify-between items-center">
                   <div>
                     <p className="text-xs font-bold text-orange-900">{alert.titulo}</p>
@@ -517,7 +623,7 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
         )}
 
         {/* Alerta prioritaria: soporte de atención en salud pendiente */}
-        {(alerts || []).filter(a => a.caseId === caseId && a.tipo === 'RutaSalud' && a.estado !== 'Atendida').map(saludAlert => (
+        {visibleRutaSaludAlerts.map(saludAlert => (
           <div key={saludAlert.id} className="bg-red-50 border-2 border-red-200 rounded-2xl p-4 shadow-sm animate-[fadeIn_0.3s_ease-out]">
             <div className="flex items-start gap-3 mb-3">
               <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center shrink-0 border border-red-200">
@@ -792,8 +898,8 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
                 </label>
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowSeguimientoModal(false)} className="flex-1 py-3 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">Cancelar</button>
-                <button type="submit" className="flex-1 py-3 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors">Guardar</button>
+                <button type="button" onClick={() => setShowSeguimientoModal(false)} disabled={submittingAction === 'seguimiento'} className="flex-1 py-3 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 disabled:opacity-60 disabled:cursor-not-allowed rounded-xl transition-colors">Cancelar</button>
+                <button type="submit" disabled={submittingAction === 'seguimiento'} className="flex-1 py-3 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed rounded-xl transition-colors">{submittingAction === 'seguimiento' ? 'Guardando...' : 'Guardar'}</button>
               </div>
             </form>
           </div>
@@ -853,8 +959,8 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
                   </label>
                 </div>
                 <div className="flex gap-3 pt-2">
-                  <button type="button" onClick={() => setShowCitaModal(false)} className="flex-1 py-3 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">Cancelar</button>
-                  <button type="submit" className="flex-1 py-3 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors">Agendar</button>
+                  <button type="button" onClick={() => setShowCitaModal(false)} disabled={submittingAction === 'cita'} className="flex-1 py-3 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 disabled:opacity-60 disabled:cursor-not-allowed rounded-xl transition-colors">Cancelar</button>
+                  <button type="submit" disabled={submittingAction === 'cita'} className="flex-1 py-3 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed rounded-xl transition-colors">{submittingAction === 'cita' ? 'Guardando...' : 'Agendar'}</button>
                 </div>
               </form>
             </div>
@@ -894,8 +1000,8 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
                   <p className="text-[11px] text-red-800 leading-relaxed font-medium">Al guardar, este proceso quedará registrado permanentemente en el historial como una activación formal de ruta interinstitucional.</p>
                 </div>
                 <div className="flex gap-3 pt-2">
-                  <button type="button" onClick={() => setShowRutaModal(false)} className="flex-1 py-3 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">Cancelar</button>
-                  <button type="submit" className="flex-1 py-3 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors shadow-sm shadow-red-600/30">Activar Ruta</button>
+                  <button type="button" onClick={() => setShowRutaModal(false)} disabled={submittingAction === 'ruta'} className="flex-1 py-3 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 disabled:opacity-60 disabled:cursor-not-allowed rounded-xl transition-colors">Cancelar</button>
+                  <button type="submit" disabled={submittingAction === 'ruta'} className="flex-1 py-3 text-sm font-bold text-white bg-red-600 hover:bg-red-700 disabled:bg-slate-300 disabled:cursor-not-allowed rounded-xl transition-colors shadow-sm shadow-red-600/30">{submittingAction === 'ruta' ? 'Guardando...' : 'Activar Ruta'}</button>
                 </div>
               </form>
             </div>
@@ -953,12 +1059,14 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
                   <button
                     type="button"
                     onClick={() => { setShowConfirmSoporteModal(false); setSaludAlertToConfirm(null); }}
+                    disabled={submittingAction === 'soporte'}
                     className="flex-1 py-3 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
+                    disabled={submittingAction === 'soporte'}
                     className="flex-1 py-3 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors shadow-sm shadow-red-600/30"
                   >
                     Registrar verificación
@@ -1107,16 +1215,19 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
                   <button
                     type="button"
                     onClick={() => { setShowConfirmCitaModal(false); setCitaParaConfirmar(null); setEditingSeguimiento(null); setAsistioSelection(''); }}
+                    disabled={submittingCitaResult}
                     className="flex-1 py-3 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
-                    disabled={!asistioSelection}
+                    disabled={!asistioSelection || submittingCitaResult}
                     className="flex-1 py-3 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed rounded-xl transition-colors"
                   >
-                    {asistioSelection === 'cancelar'
+                    {submittingCitaResult
+                      ? 'Guardando...'
+                      : asistioSelection === 'cancelar'
                       ? 'Reagendar cita'
                       : editingSeguimiento
                       ? 'Guardar'

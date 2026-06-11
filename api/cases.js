@@ -1,8 +1,25 @@
 // api/cases.js
 import { query } from './db.js';
 
+const mapCaseRow = (row) => {
+  const extra = row.data || {};
+  return {
+    id: row.id,
+    identificacion: row.identificacion,
+    codigo: row.codigo,
+    nombre: row.nombre,
+    descripcion: row.descripcion,
+    tipoCaso: row.tipoCaso ?? row.tipocaso,
+    estado: row.estado,
+    fechaInicio: row.fechaInicio ?? row.fechainicio,
+    fechaFin: row.fechaFin ?? row.fechafin,
+    createdAt: row.createdAt ?? row.createdat,
+    updatedAt: row.updatedAt ?? row.updatedat,
+    ...extra
+  };
+};
+
 export default async function handler(req, res) {
-  // Enable CORS
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -18,13 +35,24 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === 'GET') {
-      const result = await query('SELECT * FROM cases ORDER BY createdAt DESC');
-      // Merge data column fields with base fields for frontend
-      const cases = result.rows.map(c => ({
-        ...c,
-        ...(c.data || {})
-      }));
-      res.status(200).json(cases);
+      const result = await query(`
+        SELECT
+          id,
+          identificacion,
+          codigo,
+          nombre,
+          descripcion,
+          tipocaso AS "tipoCaso",
+          estado,
+          fechainicio AS "fechaInicio",
+          fechafin AS "fechaFin",
+          data,
+          createdat AS "createdAt",
+          updatedat AS "updatedAt"
+        FROM cases
+        ORDER BY createdat DESC
+      `);
+      res.status(200).json(result.rows.map(mapCaseRow));
     } else if (req.method === 'POST') {
       const { id, identificacion, codigo, nombre, descripcion, tipoCaso, estado, fechaInicio, fechaFin, ...additionalData } = req.body;
 
@@ -32,26 +60,12 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Missing required fields: id, nombre' });
       }
 
-      // Try to insert with additional fields, fallback to basic fields if schema doesn't support them
-      try {
-        const dataJson = JSON.stringify(additionalData);
-        const result = await query(
-          'INSERT INTO cases (id, identificacion, codigo, nombre, descripcion, tipoCaso, estado, fechaInicio, fechaFin, data, createdAt, updatedAt) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW()) RETURNING *',
-          [id, identificacion, codigo, nombre, descripcion, tipoCaso, estado || 'Activo', fechaInicio, fechaFin, dataJson]
-        );
-        // Merge response data with additional fields
-        const caseData = { ...result.rows[0], ...additionalData };
-        res.status(201).json(caseData);
-      } catch (schemaError) {
-        // Fallback: Insert with basic schema only
-        const result = await query(
-          'INSERT INTO cases (id, identificacion, codigo, nombre, descripcion, tipoCaso, estado, fechaInicio, fechaFin, createdAt, updatedAt) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW()) RETURNING *',
-          [id, identificacion, codigo, nombre, descripcion, tipoCaso, estado || 'Activo', fechaInicio, fechaFin]
-        );
-        // Merge response data with additional fields for client
-        const caseData = { ...result.rows[0], ...additionalData };
-        res.status(201).json(caseData);
-      }
+      const dataJson = JSON.stringify(additionalData);
+      const result = await query(
+        'INSERT INTO cases (id, identificacion, codigo, nombre, descripcion, tipocaso, estado, fechainicio, fechafin, data, createdat, updatedat) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, NOW(), NOW()) RETURNING id, identificacion, codigo, nombre, descripcion, tipocaso AS "tipoCaso", estado, fechainicio AS "fechaInicio", fechafin AS "fechaFin", data, createdat AS "createdAt", updatedat AS "updatedAt"',
+        [id, identificacion, codigo, nombre, descripcion, tipoCaso, estado || 'Activo', fechaInicio, fechaFin, dataJson]
+      );
+      res.status(201).json(mapCaseRow(result.rows[0]));
     } else if (req.method === 'PUT') {
       const { id, identificacion, codigo, nombre, descripcion, tipoCaso, estado, fechaInicio, fechaFin, ...additionalData } = req.body;
 
@@ -59,36 +73,17 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Missing required field: id' });
       }
 
-      try {
-        // Try with additional fields first
-        const dataJson = JSON.stringify(additionalData);
-        const result = await query(
-          'UPDATE cases SET identificacion=$1, codigo=$2, nombre=$3, descripcion=$4, tipoCaso=$5, estado=$6, fechaInicio=$7, fechaFin=$8, data=$9, updatedAt=NOW() WHERE id=$10 RETURNING *',
-          [identificacion, codigo, nombre, descripcion, tipoCaso, estado, fechaInicio, fechaFin, dataJson, id]
-        );
+      const dataJson = JSON.stringify(additionalData);
+      const result = await query(
+        'UPDATE cases SET identificacion=COALESCE($1, identificacion), codigo=COALESCE($2, codigo), nombre=COALESCE($3, nombre), descripcion=COALESCE($4, descripcion), tipocaso=COALESCE($5, tipocaso), estado=COALESCE($6, estado), fechainicio=COALESCE($7, fechainicio), fechafin=COALESCE($8, fechafin), data=COALESCE(data, \'{}\'::jsonb) || $9::jsonb, updatedat=NOW() WHERE id=$10 RETURNING id, identificacion, codigo, nombre, descripcion, tipocaso AS "tipoCaso", estado, fechainicio AS "fechaInicio", fechafin AS "fechaFin", data, createdat AS "createdAt", updatedat AS "updatedAt"',
+        [identificacion, codigo, nombre, descripcion, tipoCaso, estado, fechaInicio, fechaFin, dataJson, id]
+      );
 
-        if (result.rows.length === 0) {
-          return res.status(404).json({ error: 'Case not found' });
-        }
-
-        // Merge response with additional fields
-        const caseData = { ...result.rows[0], ...additionalData };
-        res.status(200).json(caseData);
-      } catch (schemaError) {
-        // Fallback: Update with basic schema only
-        const result = await query(
-          'UPDATE cases SET identificacion=$1, codigo=$2, nombre=$3, descripcion=$4, tipoCaso=$5, estado=$6, fechaInicio=$7, fechaFin=$8, updatedAt=NOW() WHERE id=$9 RETURNING *',
-          [identificacion, codigo, nombre, descripcion, tipoCaso, estado, fechaInicio, fechaFin, id]
-        );
-
-        if (result.rows.length === 0) {
-          return res.status(404).json({ error: 'Case not found' });
-        }
-
-        // Merge response with additional fields for client
-        const caseData = { ...result.rows[0], ...additionalData };
-        res.status(200).json(caseData);
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Case not found' });
       }
+
+      res.status(200).json(mapCaseRow(result.rows[0]));
     } else if (req.method === 'DELETE') {
       const { id } = req.body;
 

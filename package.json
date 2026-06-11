@@ -6,6 +6,7 @@
   "homepage": "https://Andrex036.github.io/TiLoApp/",
   "scripts": {
     "dev": "vite",
+    "dev:vercel": "vercel dev --listen 5178 --local-config vercel.local.json",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",

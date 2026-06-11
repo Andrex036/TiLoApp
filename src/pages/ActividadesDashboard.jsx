@@ -44,6 +44,8 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
   const [repeatWeeks, setRepeatWeeks] = useState(1);
   const [weekOffset, setWeekOffset] = useState(0);
   const [monthOffset, setMonthOffset] = useState(0);
+  const [isSavingActivity, setIsSavingActivity] = useState(false);
+  const [processingActivityId, setProcessingActivityId] = useState(null);
 
   const { activities, createActivity, updateStatus, deleteActivity, deleteRecurrenceSeries, updateActivity } = useActivities();
 
@@ -184,25 +186,37 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
       .sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
   }, [activities, selectedCalendarDate]);
 
-  const handleChangeStatus = (id, newStatus) => {
-    updateStatus(id, newStatus);
+  const handleChangeStatus = async (id, newStatus) => {
+    if (processingActivityId) return;
+    setProcessingActivityId(id);
+    try {
+    await updateStatus(id, newStatus);
     setOpenMenuId(null);
+    } finally {
+      setProcessingActivityId(null);
+    }
   };
 
-  const handleDelete = (act) => {
+  const handleDelete = async (act) => {
+    if (processingActivityId) return;
+    setProcessingActivityId(act.id);
+    try {
     if (act.recurrenceId) {
       const choice = confirm('Esta actividad es parte de una serie recurrente.\n\nPresiona Aceptar para eliminar TODA LA SERIE.\nPresiona Cancelar para eliminar SOLO ESTA ACTIVIDAD.');
       if (choice) {
-        deleteRecurrenceSeries(act.recurrenceId);
+        await deleteRecurrenceSeries(act.recurrenceId);
       } else {
-        deleteActivity(act.id);
+        await deleteActivity(act.id);
       }
     } else {
       if (confirm('¿Estás seguro de eliminar esta actividad?')) {
-        deleteActivity(act.id);
+        await deleteActivity(act.id);
       }
     }
     setOpenMenuId(null);
+    } finally {
+      setProcessingActivityId(null);
+    }
   };
 
   const handleOpenEdit = (act) => {
@@ -314,6 +328,7 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
 
                 <button
                   onClick={(e) => { e.stopPropagation(); handleChangeStatus(act.id, 'Realizada'); }}
+                  disabled={processingActivityId === act.id}
                   className="w-full text-left px-4 py-2 text-xs font-bold text-green-600 hover:bg-green-50 flex items-center gap-2"
                 >
                   Marcar como Realizada
@@ -321,6 +336,7 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
 
                 <button
                   onClick={(e) => { e.stopPropagation(); handleChangeStatus(act.id, 'En curso'); }}
+                  disabled={processingActivityId === act.id}
                   className="w-full text-left px-4 py-2 text-xs font-bold text-purple-600 hover:bg-purple-50 flex items-center gap-2"
                 >
                   En curso / Taller
@@ -328,6 +344,7 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
 
                 <button
                   onClick={(e) => { e.stopPropagation(); handleChangeStatus(act.id, 'Pendiente'); }}
+                  disabled={processingActivityId === act.id}
                   className="w-full text-left px-4 py-2 text-xs font-bold text-orange-600 hover:bg-orange-50 flex items-center gap-2"
                 >
                   Requiere Seguimiento
@@ -335,6 +352,7 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
 
                 <button
                   onClick={(e) => { e.stopPropagation(); handleChangeStatus(act.id, 'Cancelada'); }}
+                  disabled={processingActivityId === act.id}
                   className="w-full text-left px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-50 flex items-center gap-2"
                 >
                   No asistió / Cancelada
@@ -344,6 +362,7 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
 
                 <button
                   onClick={(e) => { e.stopPropagation(); handleDelete(act); }}
+                  disabled={processingActivityId === act.id}
                   className="w-full text-left px-4 py-2 text-xs font-bold text-red-600 hover:bg-red-50 flex items-center gap-2"
                 >
                   Eliminar
@@ -406,8 +425,11 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
     return () => document.body.classList.remove('no-scroll');
   }, [isModalOpen]);
 
-  const handleCreateActivity = (e) => {
+  const handleCreateActivity = async (e) => {
     e.preventDefault();
+    if (isSavingActivity) return;
+    setIsSavingActivity(true);
+    try {
     const formData = new FormData(e.target);
     const recurrenceId = isRecurring ? `rec-${Date.now()}` : null;
 
@@ -427,8 +449,8 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
     };
 
     if (editingActivity) {
-      updateActivity(editingActivity.id, { ...baseActivity, fecha: formData.get('fecha') });
-      setCreatedActivity({ ...baseActivity, fecha: formData.get('fecha'), id: editingActivity.id });
+      const saved = await updateActivity(editingActivity.id, { ...baseActivity, fecha: formData.get('fecha') });
+      setCreatedActivity(saved);
     } else if (isRecurring) {
       // Recurrence logic
       const startDate = new Date(formData.get('fecha'));
@@ -439,7 +461,7 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
       const selectedDayNums = selectedDays.map(d => dayMap[d]);
 
       for (let w = 0; w < repeatWeeks; w++) {
-        selectedDayNums.forEach(dayNum => {
+        for (const dayNum of selectedDayNums) {
           const current = new Date(startDate);
           // Calculate target date for this week and day
           const diff = dayNum - startDate.getDay();
@@ -448,15 +470,24 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
           // Only if it's not in the past relative to the start date (optional check)
           if (current >= startDate || w > 0) {
             const dateStr = getLocalDateStr(current);
-            const saved = createActivity({ ...baseActivity, fecha: dateStr });
+            const saved = await createActivity({ ...baseActivity, fecha: dateStr });
             instances.push(saved);
           }
-        });
+        }
       }
       setCreatedActivity({ ...baseActivity, fecha: 'Múltiples fechas', count: instances.length });
     } else {
-      const saved = createActivity({ ...baseActivity, fecha: formData.get('fecha') });
+      const saved = await createActivity({ ...baseActivity, fecha: formData.get('fecha') });
       setCreatedActivity(saved);
+    }
+    setIsModalOpen(false);
+    setCreatedActivity(null);
+    setEditingActivity(null);
+    setIsRecurring(false);
+    setSelectedDays([]);
+    setRepeatWeeks(1);
+    } finally {
+      setIsSavingActivity(false);
     }
   };
 
@@ -1029,9 +1060,9 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
                     </div>
                   </div>
                   <div className="p-5 border-t border-slate-100 bg-slate-50/50 flex gap-3 shrink-0">
-                    <button type="button" onClick={handleCloseModal} className="flex-1 py-3 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">Cancelar</button>
-                    <button type="submit" className="flex-1 py-3 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-sm shadow-blue-600/30">
-                      {editingActivity ? 'Guardar Cambios' : 'Agendar Actividad'}
+                    <button type="button" onClick={handleCloseModal} disabled={isSavingActivity} className="flex-1 py-3 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 disabled:opacity-60 disabled:cursor-not-allowed rounded-xl transition-colors">Cancelar</button>
+                    <button type="submit" disabled={isSavingActivity} className="flex-1 py-3 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed rounded-xl transition-colors shadow-sm shadow-blue-600/30">
+                      {isSavingActivity ? 'Guardando...' : editingActivity ? 'Guardar Cambios' : 'Agendar Actividad'}
                     </button>
                   </div>
                 </form>
