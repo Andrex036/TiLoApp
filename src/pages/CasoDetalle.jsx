@@ -3,6 +3,7 @@ import { ArrowLeft, Plus, Calendar as CalendarIcon, FileText, CheckCircle2, Aler
 import { useCases } from '../hooks/useCases'
 import { useActivities } from '../hooks/useActivities'
 import { useAlerts } from '../hooks/useAlerts'
+import { exportCaseReportToPDF } from '../utils/exportReports'
 
 export default function CasoDetalle({ caseId, onBack, onEdit }) {
   const { cases, addSeguimiento, updateCase, updateSeguimiento, deleteSeguimiento, closeCase } = useCases()
@@ -550,6 +551,15 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
                   className="w-full px-4 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-3"
                 >
                   <FileText size={18} className="text-blue-500" /> Editar Información
+                </button>
+                <button
+                  onClick={async () => {
+                    setShowConfigMenu(false);
+                    await exportCaseReportToPDF(caseData);
+                  }}
+                  className="w-full px-4 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-3"
+                >
+                  <FileText size={18} className="text-emerald-600" /> Exportar reporte
                 </button>
                 <button 
                   onClick={() => {

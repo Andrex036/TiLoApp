@@ -22,7 +22,8 @@ import {
 } from 'lucide-react';
 import { 
   exportReportToExcel, 
-  exportReportToPDF 
+  exportReportToPDF,
+  exportCasesBackupToExcel
 } from '../utils/exportReports';
 import { useCases } from '../hooks/useCases';
 import { useActivities } from '../hooks/useActivities';
@@ -66,12 +67,19 @@ export default function ReportesDashboard({ onNavigate }) {
       const matchesDate = alertDate >= startDate && alertDate <= endDate;
       return matchesSede && matchesDate;
     });
+    const isActiveAlert = (alert) => (
+      alert?.activo !== false
+      && alert?.estado !== 'Atendida'
+      && alert?.estado !== 'Resuelta'
+      && alert?.estado !== 'Cerrada'
+    );
+    const activeFilteredAlerts = filteredAlerts.filter(isActiveAlert);
 
     // 2. Aggregate Data
     const totalCases = filteredCases.length;
     const closedCases = filteredCases.filter(c => c.estado === 'Cerrado').length;
     const followUpCases = filteredCases.filter(c => c.estado === 'En seguimiento' || c.estado === 'Abierto').length;
-    const activeAlerts = filteredAlerts.filter(al => al.estado !== 'Atendida').length;
+    const activeAlerts = activeFilteredAlerts.length;
 
     // Cases by Reason
     const reasonMap = {};
@@ -138,7 +146,7 @@ export default function ReportesDashboard({ onNavigate }) {
     const consolidated = sedesList.map(s => {
       const sCases = filteredCases.filter(c => c.sede === s);
       const sActs = filteredActs.filter(a => a.sede === s);
-      const sAlerts = filteredAlerts.filter(al => al.sede === s);
+      const sAlerts = activeFilteredAlerts.filter(al => al.sede === s);
       const countSedeRoute = (sCases, keyword) => sCases.filter(c => {
         if (!c.rutaActivada) return false;
         const routes = Array.isArray(c.rutaActivada) ? c.rutaActivada : [c.rutaActivada];
@@ -199,7 +207,7 @@ export default function ReportesDashboard({ onNavigate }) {
     };
 
     const alertsSummary = {
-      activas: filteredAlerts.filter(al => al.estado === 'Activa').length,
+      activas: activeFilteredAlerts.length,
       atendidas: filteredAlerts.filter(al => al.estado === 'Atendida').length,
       prioritarias: filteredAlerts.filter(al => al.prioridad === 'Prioritaria').length,
       vencidas: filteredAlerts.filter(al => al.estado === 'Vencida').length
@@ -587,6 +595,12 @@ export default function ReportesDashboard({ onNavigate }) {
             <button onClick={() => exportReportToExcel(exportPayload, `${exportBaseName}.xlsx`)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold py-2 px-3 rounded-lg flex items-center gap-1.5 transition-colors shadow-sm">
               <Download size={14} className="text-green-600"/> Exportar Excel
             </button>
+            <button
+              onClick={() => exportCasesBackupToExcel(cases, `Backup_Casos_TiLo_${new Date().toISOString().split('T')[0]}.xlsx`)}
+              className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 px-3 rounded-lg flex items-center gap-1.5 transition-colors shadow-sm shadow-blue-600/20"
+            >
+              <Download size={14} /> Backup casos
+            </button>
           </div>
         </div>
 
@@ -862,21 +876,24 @@ export default function ReportesDashboard({ onNavigate }) {
         </div>
 
         {/* 11. Tabla resumen para exportación */}
-        <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden print-card">
-          <div className="bg-slate-50 px-5 py-4 border-b border-slate-100 flex items-center justify-between no-print">
+        <section className="bg-white rounded-2xl border border-blue-100 shadow-sm overflow-hidden print-card">
+          <div className="bg-gradient-to-r from-[#0F4DB8] to-[#0B3F9C] px-5 py-4 border-b border-blue-900/10 flex items-center justify-between no-print">
             <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
-              <FileBox size={18} className="text-blue-600"/> Resumen consolidado por sede
+              <span className="w-9 h-9 rounded-xl bg-white/15 text-white flex items-center justify-center">
+                <FileBox size={18}/>
+              </span>
+              <span className="text-white">Resumen consolidado por sede</span>
             </h2>
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+            <div className="text-[10px] font-bold text-blue-100 uppercase tracking-widest">
               Desliza para ver más →
             </div>
           </div>
           
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs text-left whitespace-nowrap min-w-[900px]">
+          <div className="overflow-x-auto bg-blue-50/30">
+            <table className="w-full text-xs text-left whitespace-nowrap min-w-[900px] border-separate border-spacing-0">
               <thead>
-                <tr className="bg-white text-slate-500 uppercase font-bold border-b border-slate-100">
-                  <th className="px-5 py-4 sticky left-0 bg-white shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] z-10">Sede</th>
+                <tr className="bg-[#0F4DB8] text-white uppercase font-black tracking-wide">
+                  <th className="px-5 py-4 sticky left-0 bg-[#0F4DB8] shadow-[3px_0_8px_-4px_rgba(15,77,184,0.7)] z-10">Sede</th>
                   <th className="px-3 py-4 text-center">Total</th>
                   <th className="px-3 py-4 text-center">Salud</th>
                   <th className="px-3 py-4 text-center">ICBF</th>
@@ -887,41 +904,48 @@ export default function ReportesDashboard({ onNavigate }) {
                   <th className="px-3 py-4 text-center">Actividades</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody>
                 {reportData.table.map((row, idx) => (
-                  <tr key={idx} className="hover:bg-blue-50/30 transition-colors group">
-                    <td className="px-5 py-3.5 font-bold text-slate-700 sticky left-0 bg-white group-hover:bg-blue-50/30 transition-colors shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] z-10">
-                      {row.sede}
+                  <tr key={idx} className={`${idx % 2 === 0 ? 'bg-white' : 'bg-blue-50/50'} hover:bg-blue-100/60 transition-colors group`}>
+                    <td className={`px-5 py-3.5 font-bold text-slate-800 sticky left-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-blue-50'} group-hover:bg-blue-100 transition-colors shadow-[3px_0_8px_-4px_rgba(15,77,184,0.35)] z-10`}>
+                      <div className="flex flex-col">
+                        <span>{row.sede}</span>
+                        <span className="text-[10px] font-semibold text-blue-600">{row.activos} activos · {row.cerrados} cerrados</span>
+                      </div>
                     </td>
-                    <td className="px-3 py-3.5 text-center font-bold text-slate-800">{row.total}</td>
-                    <td className="px-3 py-3.5 text-center text-slate-600">{row.salud}</td>
-                    <td className="px-3 py-3.5 text-center text-slate-600">{row.icbf}</td>
-                    <td className="px-3 py-3.5 text-center text-slate-600">{row.policia}</td>
-                    <td className="px-3 py-3.5 text-center text-slate-600">{row.comisaria}</td>
-                    <td className="px-3 py-3.5 text-center text-slate-600">{row.fiscalia}</td>
                     <td className="px-3 py-3.5 text-center">
-                      <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${row.alertas > 0 ? 'bg-red-100 text-red-700' : 'text-slate-300'}`}>
+                      <span className="inline-flex min-w-8 justify-center rounded-full bg-blue-600 px-2 py-1 text-[11px] font-black text-white shadow-sm shadow-blue-600/20">{row.total}</span>
+                    </td>
+                    <td className="px-3 py-3.5 text-center font-bold text-slate-600">{row.salud}</td>
+                    <td className="px-3 py-3.5 text-center font-bold text-slate-600">{row.icbf}</td>
+                    <td className="px-3 py-3.5 text-center font-bold text-slate-600">{row.policia}</td>
+                    <td className="px-3 py-3.5 text-center font-bold text-slate-600">{row.comisaria}</td>
+                    <td className="px-3 py-3.5 text-center font-bold text-slate-600">{row.fiscalia}</td>
+                    <td className="px-3 py-3.5 text-center">
+                      <span className={`inline-flex min-w-7 justify-center rounded-full px-2 py-1 font-black text-[10px] ${row.alertas > 0 ? 'bg-red-100 text-red-700 ring-1 ring-red-200' : 'bg-slate-100 text-slate-400'}`}>
                         {row.alertas}
                       </span>
                     </td>
-                    <td className="px-3 py-3.5 text-center text-slate-600">{row.acts}</td>
+                    <td className="px-3 py-3.5 text-center">
+                      <span className="inline-flex min-w-8 justify-center rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-black text-emerald-700 ring-1 ring-emerald-100">{row.acts}</span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
               {reportData.table.length > 1 && (
                 <tfoot>
-                  <tr className="bg-slate-900 text-white font-bold">
-                    <td className="px-5 py-4 sticky left-0 bg-slate-900 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)] z-10 rounded-bl-2xl">
+                  <tr className="bg-[#0B3F9C] text-white font-bold">
+                    <td className="px-5 py-4 sticky left-0 bg-[#0B3F9C] shadow-[3px_0_8px_-4px_rgba(11,63,156,0.8)] z-10 rounded-bl-2xl">
                       TOTAL GENERAL
                     </td>
                     <td className="px-3 py-4 text-center text-base font-black">{reportData.table.reduce((acc, curr) => acc + curr.total, 0)}</td>
-                    <td className="px-3 py-4 text-center opacity-80">{reportData.routes.salud.count}</td>
-                    <td className="px-3 py-4 text-center opacity-80">{reportData.routes.icbf.count}</td>
-                    <td className="px-3 py-4 text-center opacity-80">{reportData.routes.policia.count}</td>
-                    <td className="px-3 py-4 text-center opacity-80">{reportData.routes.comisaria.count}</td>
-                    <td className="px-3 py-4 text-center opacity-80">{reportData.routes.fiscalia.count}</td>
-                    <td className="px-3 py-4 text-center text-red-400 font-black">{reportData.table.reduce((acc, curr) => acc + curr.alertas, 0)}</td>
-                    <td className="px-3 py-4 text-center opacity-80 rounded-br-2xl">{reportData.table.reduce((acc, curr) => acc + curr.acts, 0)}</td>
+                    <td className="px-3 py-4 text-center text-blue-100">{reportData.routes.salud.count}</td>
+                    <td className="px-3 py-4 text-center text-blue-100">{reportData.routes.icbf.count}</td>
+                    <td className="px-3 py-4 text-center text-blue-100">{reportData.routes.policia.count}</td>
+                    <td className="px-3 py-4 text-center text-blue-100">{reportData.routes.comisaria.count}</td>
+                    <td className="px-3 py-4 text-center text-blue-100">{reportData.routes.fiscalia.count}</td>
+                    <td className="px-3 py-4 text-center text-red-200 font-black">{reportData.table.reduce((acc, curr) => acc + curr.alertas, 0)}</td>
+                    <td className="px-3 py-4 text-center text-emerald-100 rounded-br-2xl">{reportData.table.reduce((acc, curr) => acc + curr.acts, 0)}</td>
                   </tr>
                 </tfoot>
               )}

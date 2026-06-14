@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import tiloLogo from '../assets/TiLo_Logo.png';
+import tiloHomeLogo from '../assets/TiLo_Logo_Cara.png';
 
 const sanitizeFileName = (name = 'reporte_tilo') => {
   return String(name)
@@ -93,7 +94,8 @@ const CATEGORY_HEADERS = {
   'Citaciones': 'Informe Oficial de Citaciones',
   'Activaciones de ruta': 'Informe Oficial de Activaciones de Ruta',
   'Casos cerrados': 'Informe Oficial de Casos Cerrados',
-  'Casos en seguimiento': 'Informe Oficial de Casos en Seguimiento'
+  'Casos en seguimiento': 'Informe Oficial de Casos en Seguimiento',
+  'Caso individual': 'Reporte Ejecutivo del Caso'
 };
 
 let logoDataUrlPromise;
@@ -110,6 +112,66 @@ const getLogoDataUrl = async () => {
       .catch(() => null);
   }
   return logoDataUrlPromise;
+};
+
+let homeLogoDataUrlPromise;
+const getHomeLogoDataUrl = async () => {
+  if (!homeLogoDataUrlPromise) {
+    homeLogoDataUrlPromise = fetch(tiloHomeLogo)
+      .then((res) => res.blob())
+      .then((blob) => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      }))
+      .catch(() => null);
+  }
+  return homeLogoDataUrlPromise;
+};
+
+let roundHomeLogoDataUrlPromise;
+const getRoundHomeLogoDataUrl = async () => {
+  if (!roundHomeLogoDataUrlPromise) {
+    roundHomeLogoDataUrlPromise = getHomeLogoDataUrl()
+      .then((dataUrl) => {
+        if (!dataUrl) return null;
+
+        return new Promise((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            const size = 256;
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            const sourceSize = Math.min(img.width, img.height);
+            const sx = (img.width - sourceSize) / 2;
+            const sy = (img.height - sourceSize) / 2;
+
+            ctx.clearRect(0, 0, size, size);
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(size / 2, size / 2, size / 2 - 3, 0, Math.PI * 2);
+            ctx.closePath();
+            ctx.clip();
+            ctx.drawImage(img, sx, sy, sourceSize, sourceSize, 0, 0, size, size);
+            ctx.restore();
+
+            ctx.beginPath();
+            ctx.arc(size / 2, size / 2, size / 2 - 5, 0, Math.PI * 2);
+            ctx.lineWidth = 10;
+            ctx.strokeStyle = '#ffffff';
+            ctx.stroke();
+            resolve(canvas.toDataURL('image/png'));
+          };
+          img.onerror = () => resolve(dataUrl);
+          img.src = dataUrl;
+        });
+      })
+      .catch(() => null);
+  }
+  return roundHomeLogoDataUrlPromise;
 };
 
 const toReadableLabel = (key) => {
@@ -218,6 +280,89 @@ export const exportReportToExcel = (payloadOrRows, fileName = 'reporte_tilo.xlsx
   XLSX.writeFile(workbook, sanitizeFileName(fileName));
 };
 
+const toBackupJson = (value) => {
+  if (value === null || value === undefined) return '';
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+};
+
+export const exportCasesBackupToExcel = (cases = [], fileName = 'backup_casos_tilo.xlsx') => {
+  if (!Array.isArray(cases) || cases.length === 0) {
+    alert('No hay casos registrados disponibles para exportar.');
+    return;
+  }
+
+  const rows = cases.map((caseItem) => {
+    const seguimientos = Array.isArray(caseItem.seguimientos) ? caseItem.seguimientos : [];
+    const rutas = getCaseRoutes(caseItem, seguimientos);
+    const activeSeguimientos = seguimientos.filter((seg) => !seg?.eliminado);
+
+    return {
+      'ID interno': caseItem.id || '',
+      'Código del caso': caseItem.codigo || '',
+      'Estudiante': getCaseStudentName(caseItem),
+      'Identificación': caseItem.identificacion || '',
+      'Identificación pendiente': toDisplayValue(caseItem.identificacionPendiente || caseItem.sinIdentificacion || false),
+      'Origen identificación': caseItem.identificacionOrigen || '',
+      'Género': caseItem.genero || '',
+      'Grado': caseItem.grado || '',
+      'Sede': caseItem.sede || '',
+      'Estado': caseItem.estado || '',
+      'Nivel de riesgo': caseItem.nivelRiesgo || '',
+      'Tipo de caso': caseItem.tipoCaso || '',
+      'Motivo': caseItem.motivo || caseItem.motivoRemision || '',
+      'Descripción': caseItem.descripcion || '',
+      'Observaciones': caseItem.observaciones || '',
+      'Docente remitente': caseItem.docenteRemitente || '',
+      'Fecha creación': formatDateTime(caseItem.createdAt),
+      'Última actualización': formatDateTime(caseItem.updatedAt),
+      'Rutas activadas': joinList(rutas),
+      'Total seguimientos': seguimientos.length,
+      'Seguimientos activos': activeSeguimientos.length,
+      'Seguimientos eliminados': seguimientos.length - activeSeguimientos.length,
+      'Seguimientos completos JSON': toBackupJson(seguimientos),
+      'Rutas originales JSON': toBackupJson(caseItem.rutaActivada),
+      'Registro completo JSON': toBackupJson(caseItem)
+    };
+  });
+
+  const workbook = XLSX.utils.book_new();
+  const sheet = XLSX.utils.json_to_sheet(rows);
+  sheet['!cols'] = [
+    { wch: 22 },
+    { wch: 14 },
+    { wch: 28 },
+    { wch: 18 },
+    { wch: 20 },
+    { wch: 24 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 22 },
+    { wch: 16 },
+    { wch: 16 },
+    { wch: 16 },
+    { wch: 24 },
+    { wch: 36 },
+    { wch: 36 },
+    { wch: 24 },
+    { wch: 20 },
+    { wch: 20 },
+    { wch: 32 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 20 },
+    { wch: 80 },
+    { wch: 40 },
+    { wch: 100 }
+  ];
+
+  XLSX.utils.book_append_sheet(workbook, sheet, 'Casos registrados');
+  XLSX.writeFile(workbook, sanitizeFileName(fileName));
+};
+
 
 // Utilidad para crear un gráfico circular (pie) en un canvas y devolverlo como dataURL
 const createPieChartDataUrl = (data, width = 320, height = 320, label = '') => {
@@ -266,7 +411,7 @@ export const exportReportToPDF = async (payloadOrRows, fileName = 'reporte_tilo.
   const pageHeight = doc.internal.pageSize.getHeight();
   const category = payload.metadata?.Categoria || payload.metadata?.categoria || 'Todas las categorías';
   const officialHeader = getCategoryHeader(category);
-  const logoDataUrl = await getLogoDataUrl();
+  const logoDataUrl = await getRoundHomeLogoDataUrl();
 
   // Portada institucional
   doc.setFillColor(15, 77, 184);
@@ -274,21 +419,21 @@ export const exportReportToPDF = async (payloadOrRows, fileName = 'reporte_tilo.
   doc.setFillColor(255, 255, 255);
   doc.roundedRect(32, 32, pageWidth - 64, pageHeight - 64, 14, 14, 'F');
   if (logoDataUrl) {
-    doc.addImage(logoDataUrl, 'PNG', 56, 56, 130, 40);
+    doc.addImage(logoDataUrl, 'PNG', 56, 54, 58, 58);
   }
   doc.setTextColor(15, 77, 184);
   doc.setFontSize(20);
-  doc.text('TiLoAPP', 56, 125);
+  doc.text('TiLo Te Escucha', 128, 78);
   doc.setFontSize(11);
-  doc.text('Plataforma institucional de orientación escolar', 56, 145);
+  doc.text('Plataforma institucional de orientación escolar', 128, 98);
   doc.setDrawColor(226, 232, 240);
-  doc.line(56, 160, pageWidth - 56, 160);
+  doc.line(56, 130, pageWidth - 56, 130);
   doc.setTextColor(30, 41, 59);
   doc.setFontSize(22);
-  doc.text(officialHeader, 56, 205);
+  doc.text(officialHeader, 56, 178);
   doc.setFontSize(12);
-  doc.text('Documento oficial generado automáticamente', 56, 227);
-  let coverY = 265;
+  doc.text('Documento oficial generado automáticamente', 56, 200);
+  let coverY = 238;
   Object.entries(payload.metadata || {}).forEach(([key, value]) => {
     doc.setFontSize(10);
     doc.setTextColor(100, 116, 139);
@@ -376,3 +521,301 @@ export const exportReportToPDF = async (payloadOrRows, fileName = 'reporte_tilo.
   doc.save(sanitizeFileName(fileName));
 };
 
+const formatDateTime = (value) => {
+  if (!value) return 'N/A';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleString();
+};
+
+const joinList = (value) => {
+  if (!value) return 'N/A';
+  if (Array.isArray(value)) return value.length ? value.join(', ') : 'N/A';
+  return String(value);
+};
+
+const getCaseStudentName = (caseData = {}) => (
+  caseData.estudiante || caseData.nombre || 'Estudiante sin nombre'
+);
+
+const getCaseRoutes = (caseData = {}, seguimientos = []) => {
+  const directRoutes = Array.isArray(caseData.rutaActivada)
+    ? caseData.rutaActivada
+    : caseData.rutaActivada
+      ? [caseData.rutaActivada]
+      : [];
+
+  const seguimientoRoutes = seguimientos
+    .filter((seg) => String(seg?.tipoSeguimiento || '').startsWith('Activación Ruta:'))
+    .map((seg) => String(seg.tipoSeguimiento).replace('Activación Ruta:', '').trim())
+    .filter(Boolean);
+
+  return [...new Set([...directRoutes, ...seguimientoRoutes])];
+};
+
+export const exportCaseReportToPDF = async (caseData = {}) => {
+  if (!caseData || !caseData.id) {
+    alert('No hay información del caso disponible para exportar.');
+    return;
+  }
+
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 40;
+  const contentWidth = pageWidth - margin * 2;
+  const primary = [15, 77, 184];
+  const primaryDark = [11, 63, 156];
+  const slate900 = [15, 23, 42];
+  const slate700 = [51, 65, 85];
+  const slate500 = [100, 116, 139];
+  const slate200 = [226, 232, 240];
+  const slate50 = [248, 250, 252];
+  const blue50 = [239, 246, 255];
+  const logoDataUrl = await getRoundHomeLogoDataUrl();
+  const seguimientos = Array.isArray(caseData.seguimientos) ? caseData.seguimientos : [];
+  const activeSeguimientos = seguimientos.filter((seg) => !seg?.eliminado);
+  const rutas = getCaseRoutes(caseData, seguimientos);
+  const estudiante = getCaseStudentName(caseData);
+  const fileName = `reporte_caso_${caseData.codigo || caseData.id}_${estudiante}.pdf`;
+
+  const knownKeys = new Set([
+    'id',
+    'codigo',
+    'codigoCaso',
+    'identificacion',
+    'nombre',
+    'estudiante',
+    'genero',
+    'grado',
+    'sede',
+    'estado',
+    'nivelRiesgo',
+    'tipoCaso',
+    'createdAt',
+    'updatedAt',
+    'descripcion',
+    'observaciones',
+    'motivo',
+    'motivoRemision',
+    'docenteRemitente',
+    'identificacionOrigen',
+    'identificacionPendiente',
+    'sinIdentificacion',
+    'rutaActivada',
+    'seguimientos'
+  ]);
+
+  const additionalRows = Object.entries(caseData)
+    .filter(([key, value]) => !knownKeys.has(key) && value !== undefined && value !== null && value !== '')
+    .map(([campo, valor]) => ({ campo: toReadableLabel(campo), valor: joinList(valor) }));
+
+  const addHeader = () => {
+    doc.setFillColor(...primary);
+    doc.rect(0, 0, pageWidth, 54, 'F');
+    if (logoDataUrl) {
+      doc.addImage(logoDataUrl, 'PNG', margin, 8, 38, 38);
+    }
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.text('TiLo Te Escucha', logoDataUrl ? 92 : margin, 26);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.text('Orientación Escolar', logoDataUrl ? 92 : margin, 39);
+    doc.setFontSize(9);
+    doc.text('Reporte ejecutivo del caso', pageWidth - margin, 31, { align: 'right' });
+  };
+
+  const addFooter = () => {
+    doc.setTextColor(...slate500);
+    doc.setFontSize(8);
+    doc.text('Confidencial - Uso institucional interno', margin, pageHeight - 18);
+    doc.text(`Página ${doc.getCurrentPageInfo().pageNumber}`, pageWidth - margin, pageHeight - 18, { align: 'right' });
+  };
+
+  const ensureSpace = (currentY, neededHeight = 80) => {
+    if (currentY + neededHeight <= pageHeight - 38) return currentY;
+    addFooter();
+    doc.addPage();
+    addHeader();
+    return 78;
+  };
+
+  const drawSectionTitle = (title, y) => {
+    y = ensureSpace(y, 44);
+    doc.setFillColor(...blue50);
+    doc.roundedRect(margin, y, contentWidth, 28, 7, 7, 'F');
+    doc.setTextColor(...primary);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text(title, margin + 12, y + 18);
+    return y + 42;
+  };
+
+  const drawMetricCards = (items, y) => {
+    y = ensureSpace(y, 78);
+    const gap = 8;
+    const width = (contentWidth - gap * (items.length - 1)) / items.length;
+    items.forEach((item, index) => {
+      const x = margin + index * (width + gap);
+      doc.setFillColor(...slate50);
+      doc.setDrawColor(...slate200);
+      doc.roundedRect(x, y, width, 58, 8, 8, 'FD');
+      doc.setTextColor(...slate500);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.text(item.label.toUpperCase(), x + 10, y + 18, { maxWidth: width - 20 });
+      doc.setTextColor(...item.color);
+      doc.setFontSize(16);
+      doc.text(String(item.value), x + 10, y + 42, { maxWidth: width - 20 });
+    });
+    return y + 76;
+  };
+
+  const drawFieldList = (rows, y) => {
+    const rowHeight = 28;
+    rows.forEach(({ label, value }) => {
+      const text = toDisplayValue(value);
+      const split = doc.splitTextToSize(text, contentWidth - 190);
+      const height = Math.max(rowHeight, split.length * 11 + 14);
+      y = ensureSpace(y, height + 4);
+      doc.setDrawColor(...slate200);
+      doc.setFillColor(255, 255, 255);
+      doc.roundedRect(margin, y, contentWidth, height, 5, 5, 'FD');
+      doc.setTextColor(...slate500);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.text(label, margin + 12, y + 17);
+      doc.setTextColor(...slate900);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.text(split, margin + 180, y + 17);
+      y += height + 6;
+    });
+    return y + 4;
+  };
+
+  const drawParagraphBox = (label, value, y) => {
+    const text = toDisplayValue(value);
+    const split = doc.splitTextToSize(text, contentWidth - 24);
+    const height = Math.max(54, split.length * 11 + 36);
+    y = ensureSpace(y, height + 8);
+    doc.setFillColor(...slate50);
+    doc.setDrawColor(...slate200);
+    doc.roundedRect(margin, y, contentWidth, height, 7, 7, 'FD');
+    doc.setTextColor(...slate500);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.text(label.toUpperCase(), margin + 12, y + 17);
+    doc.setTextColor(...slate700);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text(split, margin + 12, y + 34);
+    return y + height + 10;
+  };
+
+  const drawSeguimiento = (seg, index, y) => {
+    const metadata = [
+      seg.fecha || formatDateTime(seg.createdAt),
+      seg.responsable || 'N/A',
+      seg.esCita ? 'Cita' : null,
+      seg.esCitaResultado ? 'Resultado de cita' : null,
+      seg.hasSoporte || seg.trajoSoporte ? 'Con soporte' : null,
+      seg.eliminado ? 'Eliminado' : null
+    ].filter(Boolean).join('  |  ');
+    const description = toDisplayValue(seg.descripcion);
+    const descLines = doc.splitTextToSize(description, contentWidth - 28);
+    const height = Math.max(72, descLines.length * 10 + 54);
+    y = ensureSpace(y, height + 10);
+    doc.setFillColor(seg.eliminado ? 248 : 255, seg.eliminado ? 250 : 255, seg.eliminado ? 252 : 255);
+    doc.setDrawColor(...slate200);
+    doc.roundedRect(margin, y, contentWidth, height, 7, 7, 'FD');
+    doc.setFillColor(...primary);
+    doc.roundedRect(margin + 10, y + 12, 22, 22, 5, 5, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text(String(index + 1), margin + 21, y + 27, { align: 'center' });
+    doc.setTextColor(...slate900);
+    doc.setFontSize(10);
+    doc.text(seg.tipoSeguimiento || 'Seguimiento', margin + 42, y + 21, { maxWidth: contentWidth - 54 });
+    doc.setTextColor(...slate500);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.text(metadata, margin + 42, y + 36, { maxWidth: contentWidth - 54 });
+    doc.setTextColor(...slate700);
+    doc.setFontSize(9);
+    doc.text(descLines, margin + 14, y + 57);
+    return y + height + 10;
+  };
+
+  addHeader();
+  let y = 86;
+
+  doc.setTextColor(...slate900);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(21);
+  doc.text(estudiante, margin, y, { maxWidth: contentWidth - 130 });
+  doc.setFontSize(10);
+  doc.setTextColor(...primaryDark);
+  doc.text(caseData.codigo || caseData.id, pageWidth - margin, y, { align: 'right' });
+  y += 20;
+  doc.setTextColor(...slate500);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.text(`Generado el ${new Date().toLocaleString()}`, margin, y);
+  y += 26;
+
+  y = drawMetricCards([
+    { label: 'Estado', value: caseData.estado || 'N/A', color: primary },
+    { label: 'Riesgo', value: caseData.nivelRiesgo || 'N/A', color: caseData.nivelRiesgo === 'Alto' || caseData.nivelRiesgo === 'Prioritario' ? [220, 38, 38] : [217, 119, 6] },
+    { label: 'Seguimientos', value: activeSeguimientos.length, color: [22, 163, 74] },
+    { label: 'Rutas', value: rutas.length, color: [124, 58, 237] }
+  ], y);
+
+  y = drawSectionTitle('Información general', y);
+  y = drawFieldList([
+    { label: 'Código del caso', value: caseData.codigo || caseData.id },
+    { label: 'Identificación', value: caseData.identificacion || 'No registrada' },
+    { label: 'Estudiante', value: estudiante },
+    { label: 'Género', value: caseData.genero },
+    { label: 'Grado', value: caseData.grado },
+    { label: 'Sede', value: caseData.sede },
+    { label: 'Tipo de caso', value: caseData.tipoCaso },
+    { label: 'Fecha de creación', value: formatDateTime(caseData.createdAt) },
+    { label: 'Última actualización', value: formatDateTime(caseData.updatedAt) },
+    { label: 'Origen de identificación', value: caseData.identificacionOrigen },
+    { label: 'Docente remitente', value: caseData.docenteRemitente }
+  ], y);
+
+  y = drawSectionTitle('Motivo y contexto', y);
+  y = drawParagraphBox('Motivo de consulta', caseData.motivo || caseData.motivoRemision, y);
+  y = drawParagraphBox('Descripción', caseData.descripcion, y);
+  y = drawParagraphBox('Observaciones', caseData.observaciones, y);
+
+  y = drawSectionTitle('Rutas activadas', y);
+  y = drawFieldList(
+    rutas.length
+      ? rutas.map((ruta, index) => ({ label: `Ruta ${index + 1}`, value: ruta }))
+      : [{ label: 'Estado', value: 'Sin rutas activadas registradas' }],
+    y
+  );
+
+  y = drawSectionTitle('Historial de seguimientos', y);
+  if (seguimientos.length) {
+    seguimientos.forEach((seg, index) => {
+      y = drawSeguimiento(seg, index, y);
+    });
+  } else {
+    y = drawParagraphBox('Seguimientos', 'Sin seguimientos registrados', y);
+  }
+
+  if (additionalRows.length) {
+    y = drawSectionTitle('Información adicional', y);
+    y = drawFieldList(additionalRows.map((row) => ({ label: row.campo, value: row.valor })), y);
+  }
+
+  addFooter();
+  doc.save(sanitizeFileName(fileName));
+};

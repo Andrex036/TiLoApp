@@ -20,8 +20,10 @@ import {
   Clock
 } from 'lucide-react'
 import { useCases } from '../hooks/useCases'
+import { useAlerts } from '../hooks/useAlerts'
 import CasoDetalle from './CasoDetalle'
 import { getCurrentPeriod, getFormattedDate, getPeriodByDate } from '../utils/periodUtils'
+import { exportCaseReportToPDF } from '../utils/exportReports'
 
 // --- Mock Data ---
 
@@ -39,6 +41,7 @@ const quickFilters = [
 
 export default function CasosDashboard({ onNavigate, initialCaseId }) {
   const { cases, createCase, addSeguimiento, updateCase, deleteCase } = useCases()
+  const { triggerAlertGeneration } = useAlerts()
   const currentPeriod = getCurrentPeriod();
   const [activeQuickFilter, setActiveQuickFilter] = useState('Todos')
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -321,9 +324,12 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
           seguimientos: []
         }
         const savedCase = await createCase(newCaseData)
+        try {
+          await triggerAlertGeneration()
+        } catch (alertError) {
+          console.error('Error generating initial alerts:', alertError)
+        }
         setCreatedCase({ ...savedCase, isEdit: false })
-        setIsModalOpen(false)
-        setCreatedCase(null)
         setCaseSource('')
       } catch (error) {
         console.error('Error creating case:', error);
@@ -465,6 +471,16 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
                   className="w-full px-4 py-2.5 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-3"
                 >
                   <TrendingUp size={16} className="text-orange-500" /> {updatingCaseId === c.id ? 'Actualizando...' : 'Priorizar Caso'}
+                </button>
+                <button
+                  onClick={async () => {
+                    setActiveMenuId(null);
+                    await exportCaseReportToPDF(c);
+                  }}
+                  disabled={updatingCaseId === c.id}
+                  className="w-full px-4 py-2.5 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-3"
+                >
+                  <FileText size={16} className="text-emerald-600" /> Exportar reporte
                 </button>
 
                 <button

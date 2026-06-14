@@ -30,7 +30,7 @@ const quickFilters = ['Todas', 'Hoy', 'Mañana', 'Esta semana', 'Vencidas', 'Pri
 
 export default function ActividadesDashboard({ onNavigate, initialActivityId }) {
   const currentPeriod = getCurrentPeriod();
-  const [activeFilter, setActiveFilter] = useState('Todas');
+  const [activeFilter, setActiveFilter] = useState('Hoy');
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('Todos');
   const [selectedCalendarDate, setSelectedCalendarDate] = useState(getLocalDateStr());
@@ -756,15 +756,20 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
                             : 'text-slate-300 hover:bg-slate-50/60'}`}
                       >
                         <span className="text-[11px] font-bold leading-none">{day.num}</span>
-                        {actCount > 0 && !isSelected && (
-                          <div className="absolute bottom-1 flex gap-0.5">
-                            {[...Array(Math.min(actCount, 3))].map((_, i) => (
-                              <div key={i} className={`w-1 h-1 rounded-full ${isToday ? 'bg-blue-500' : 'bg-slate-300'}`} />
-                            ))}
-                          </div>
-                        )}
-                        {actCount > 0 && isSelected && (
-                          <div className="absolute bottom-1 w-1 h-1 rounded-full bg-white/50" />
+                        {actCount > 0 && (
+                          <span
+                            className={`absolute bottom-1 right-1 min-w-4 h-4 px-1 rounded-full text-[9px] font-black leading-4 text-center shadow-sm
+                              ${isSelected
+                                ? 'bg-white text-blue-700'
+                                : isToday
+                                ? 'bg-blue-600 text-white'
+                                : day.isCurrentMonth
+                                ? 'bg-blue-100 text-blue-700'
+                                : 'bg-slate-100 text-slate-400'}`}
+                            title={`${actCount} ${actCount === 1 ? 'actividad' : 'actividades'}`}
+                          >
+                            {actCount > 9 ? '9+' : actCount}
+                          </span>
                         )}
                       </button>
                     );
@@ -869,7 +874,7 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
                 <option value="Seguimiento de caso">Seguimiento</option>
                 <option value="Taller grupal">Taller</option>
               </select>
-              <button onClick={() => { setSearchTerm(''); setTypeFilter('Todos'); setActiveFilter('Todas'); }} className="bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs px-3 py-2 font-bold flex items-center justify-center gap-2">Limpiar</button>
+              <button onClick={() => { setSearchTerm(''); setTypeFilter('Todos'); setActiveFilter('Hoy'); }} className="bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs px-3 py-2 font-bold flex items-center justify-center gap-2">Limpiar</button>
             </div>
           </div>
         </section>
@@ -963,14 +968,21 @@ export default function ActividadesDashboard({ onNavigate, initialActivityId }) 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1">Sede *</label>
-                        <input
+                        <select
                           required
                           name="sede"
-                          type="text"
                           defaultValue={editingActivity?.sede || ''}
-                          placeholder="Ej. Principal, Sede A..."
-                          className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                        />
+                          className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white text-slate-700 appearance-none"
+                        >
+                          <option value="">Seleccione...</option>
+                          <option value="Santa Mónica (JM)">Santa Mónica (JM)</option>
+                          <option value="Santa Mónica (JT)">Santa Mónica (JT)</option>
+                          <option value="Villa Flor (JM)">Villa Flor (JM)</option>
+                          <option value="Villa Flor (JT)">Villa Flor (JT)</option>
+                          <option value="Canchala">Canchala</option>
+                          <option value="Puerres">Puerres</option>
+                          <option value="El Carmen">El Carmen</option>
+                        </select>
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1">Tipo *</label>
