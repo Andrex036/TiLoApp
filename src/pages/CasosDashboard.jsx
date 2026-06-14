@@ -810,8 +810,8 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
 
       {/* Modal Crear Caso / Verificación de Éxito */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 flex items-center justify-center p-4 animate-[fadeIn_0.2s_ease-out]">
-          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-[slideUp_0.3s_ease-out]">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 flex items-center justify-center p-4 pb-24 animate-[fadeIn_0.2s_ease-out]">
+          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-[slideUp_0.3s_ease-out] flex flex-col max-h-[75vh]">
 
             {createdCase ? (
               <div className="p-8 text-center animate-[fadeIn_0.3s_ease-out]">
@@ -846,7 +846,7 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
               </div>
             ) : (
               <>
-                <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
                   <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                     {editingCase ? <FileText size={20} className="text-blue-600" /> : <UserPlus size={20} className="text-blue-600" />}
                     {editingCase ? 'Editar información del caso' : 'Crear caso nuevo'}
@@ -854,8 +854,8 @@ export default function CasosDashboard({ onNavigate, initialCaseId }) {
                   <button onClick={handleCloseModal} className="p-2 bg-white rounded-full text-slate-400 hover:text-slate-600 shadow-sm border border-slate-100"><X size={18} /></button>
                 </div>
 
-                <form onSubmit={handleCreateCase} className="p-5 overflow-y-auto max-h-[75vh]">
-                  <div className="space-y-4">
+                <form onSubmit={handleCreateCase} className="flex flex-col min-h-0">
+                  <div className="p-5 overflow-y-auto space-y-4">
                     {/* Toggle para indicar si tiene o no identificación */}
                     {!editingCase && (
                       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
