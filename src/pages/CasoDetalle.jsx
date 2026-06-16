@@ -8,7 +8,7 @@ import { exportCaseReportToPDF } from '../utils/exportReports'
 export default function CasoDetalle({ caseId, onBack, onEdit }) {
   const { cases, addSeguimiento, updateCase, updateSeguimiento, deleteSeguimiento, closeCase } = useCases()
   const { activities, createActivity, updateActivity, deleteActivity } = useActivities()
-  const { alerts, markAsAttended, createAlert, triggerAlertGeneration } = useAlerts()
+  const { alerts, markAsAttended, triggerAlertGeneration } = useAlerts()
   const [activeTab, setActiveTab] = useState('seguimientos') // seguimientos, info
   const [showSeguimientoModal, setShowSeguimientoModal] = useState(false)
   const [showCitaModal, setShowCitaModal] = useState(false)
@@ -20,7 +20,6 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
   const [showConfirmSoporteModal, setShowConfirmSoporteModal] = useState(false)
   const [saludAlertToConfirm, setSaludAlertToConfirm] = useState(null)
   const [asistioSelection, setAsistioSelection] = useState('')
-  const [showRescheduleForm, setShowRescheduleForm] = useState(false)
   const [submittingCitaResult, setSubmittingCitaResult] = useState(false)
   const [submittingAction, setSubmittingAction] = useState('')
 
@@ -420,25 +419,6 @@ export default function CasoDetalle({ caseId, onBack, onEdit }) {
       await updateCase(caseId, {
         rutaActivada: [...currentRoutes, entidad]
       });
-    }
-
-    // 3. Si es Sector Salud, crear alerta prioritaria para verificar soporte de atención
-    if (entidad === 'Sector Salud (EPS/Hospital)') {
-      await createAlert({
-        tipo: 'RutaSalud',
-        titulo: 'Pendiente: soporte de atención en salud',
-        descripcion: `Ruta activada con Sector Salud para ${caseData.estudiante} (${caseData.codigo}). Motivo: ${formData.get('motivo')}. Verificar recepción del documento de soporte de atención médica.`,
-        prioridad: 'Prioritaria',
-        estado: 'Activa',
-        fecha: today,
-        sede: caseData.sede,
-        grado: caseData.grado,
-        caseId,
-        codigoCaso: caseData.codigo,
-        estudiante: caseData.estudiante,
-        accionSugerida: 'Verificar entrega de soporte',
-        rutaDestino: 'casos'
-      })
     }
 
     setShowRutaModal(false)

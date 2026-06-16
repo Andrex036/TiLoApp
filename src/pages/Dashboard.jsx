@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import TiLoLogo from '../assets/TiLo_Logo_Cara.png';
 import { useCases } from '../hooks/useCases';
-import { getCurrentPeriod, getFormattedDate } from '../utils/periodUtils';
+import { getCurrentPeriod, getFormattedDate, getLocalDateKey } from '../utils/periodUtils';
 import { useActivities } from '../hooks/useActivities';
 import { useAlerts } from '../hooks/useAlerts';
 
@@ -79,10 +79,10 @@ export default function HomeDashboard() {
   const pendingFollowups = (alerts || []).filter(a => a.tipo === 'Seguimiento' && a.estado === 'Pendiente').length;
 
   // Activities for today & tomorrow
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalDateKey();
   const tomorrowObj = new Date();
   tomorrowObj.setDate(tomorrowObj.getDate() + 1);
-  const tomorrow = tomorrowObj.toISOString().split('T')[0];
+  const tomorrow = getLocalDateKey(tomorrowObj);
 
   const todayActivities = (activities || []).filter(a => a.fecha === today && a.estado !== 'Cancelada');
   const tomorrowActivities = (activities || []).filter(a => a.fecha === tomorrow && a.estado !== 'Cancelada');

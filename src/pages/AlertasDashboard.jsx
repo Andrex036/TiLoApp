@@ -8,7 +8,6 @@ import {
   ExternalLink,
   ArrowLeft,
   CheckCircle2,
-  Filter,
   Search,
   Activity,
   ChevronRight
@@ -18,7 +17,7 @@ import { getCurrentPeriod, getFormattedDate } from '../utils/periodUtils';
 
 export default function AlertasDashboard({ onNavigate }) {
   const currentPeriod = getCurrentPeriod();
-  const { alerts, markAsAttended, triggerAlertGeneration } = useAlerts();
+  const { alerts, markAsAttended } = useAlerts();
   const [activeCategory, setActiveCategory] = useState('Todas');
   const [searchTerm, setSearchTerm] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('Todas');
@@ -40,9 +39,12 @@ export default function AlertasDashboard({ onNavigate }) {
   const filteredAlerts = useMemo(() => {
     return (alerts || []).filter(a => {
       const matchesCategory = activeCategory === 'Todas' || a.tipo === activeCategory;
-      const matchesSearch = !searchTerm || 
-        a.titulo.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        a.descripcion.toLowerCase().includes(searchTerm.toLowerCase());
+      const normalizedSearch = searchTerm.toLowerCase();
+      const matchesSearch = !searchTerm ||
+        a.titulo.toLowerCase().includes(normalizedSearch) ||
+        a.descripcion.toLowerCase().includes(normalizedSearch) ||
+        String(a.codigoCaso || '').toLowerCase().includes(normalizedSearch) ||
+        String(a.estudiante || '').toLowerCase().includes(normalizedSearch);
       const matchesPriority = priorityFilter === 'Todas' || a.prioridad === priorityFilter;
       const matchesSede = sedeFilter === 'Todas' || a.sede === sedeFilter;
       
@@ -143,6 +145,20 @@ export default function AlertasDashboard({ onNavigate }) {
                   </div>
                   <div className="flex-1">
                     <h3 className="text-red-900 font-bold text-base">{alert.titulo}</h3>
+                    {(alert.codigoCaso || alert.estudiante) && (
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {alert.codigoCaso && (
+                          <span className="bg-white text-red-700 border border-red-100 px-2 py-0.5 rounded-md text-[10px] font-black">
+                            {alert.codigoCaso}
+                          </span>
+                        )}
+                        {alert.estudiante && (
+                          <span className="bg-white text-slate-800 border border-red-100 px-2 py-0.5 rounded-md text-[10px] font-bold">
+                            {alert.estudiante}
+                          </span>
+                        )}
+                      </div>
+                    )}
                     <p className="text-red-700/80 text-xs font-medium leading-tight mt-0.5">{alert.descripcion}</p>
                   </div>
                   <button 

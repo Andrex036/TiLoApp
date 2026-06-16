@@ -145,18 +145,19 @@ const buildAutoCandidates = ({ cases, activities, today }) => {
     });
 
     if (!isClosedCase(row.estado) && hasHealthRoute && !hasHealthSupport) {
+      const caseCode = row.codigo || caseId;
       candidates.push({
         sourceKey: `auto-route-salud-${caseId}`,
         tipo: 'RutaSalud',
         prioridad: 'Prioritaria',
         estado: 'Activa',
         titulo: 'Pendiente: soporte de atencion en salud',
-        descripcion: `La ruta de Sector Salud esta activa para ${estudiante} y aun no hay constancia de soporte recibido.`,
+        descripcion: `La ruta de Sector Salud esta activa para ${estudiante} (${caseCode}) y aun no hay constancia de soporte recibido.`,
         fecha: today,
         sede,
         grado,
         caseId,
-        codigoCaso: row.codigo || null,
+        codigoCaso: caseCode,
         estudiante,
         accionSugerida: 'Verificar entrega de soporte',
         rutaDestino: 'casos'
@@ -341,6 +342,32 @@ const upsertAutoAlerts = async (candidates) => {
   }
 };
 
+const closeDuplicateManualHealthRouteAlerts = async (candidates) => {
+  const healthRouteCaseIds = candidates
+    .filter((candidate) => candidate.tipo === 'RutaSalud' && candidate.estado !== 'Atendida')
+    .map((candidate) => normalizeCaseId(candidate.caseId))
+    .filter(Boolean);
+
+  const uniqueCaseIds = [...new Set(healthRouteCaseIds)];
+  if (uniqueCaseIds.length === 0) return;
+
+  await query(
+    `
+      UPDATE alerts
+      SET
+        activo=false,
+        data=COALESCE(data, '{}'::jsonb)
+          || '{"estado":"Atendida","autoResolved":true,"duplicateOf":"auto-route-salud"}'::jsonb,
+        updatedat=NOW()
+      WHERE tipo='RutaSalud'
+        AND caseid = ANY($1::text[])
+        AND COALESCE(data->>'source', '') <> 'auto'
+        AND COALESCE(data->>'estado', CASE WHEN activo THEN 'Activa' ELSE 'Atendida' END) <> 'Atendida'
+    `,
+    [uniqueCaseIds]
+  );
+};
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -390,6 +417,7 @@ export default async function handler(req, res) {
           today
         });
         await upsertAutoAlerts(candidates);
+        await closeDuplicateManualHealthRouteAlerts(candidates);
       }
 
       const selectSql = `
